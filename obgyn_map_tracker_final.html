@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OBGYN Residency Programs — Drive-Distance Tiers from Lake Grove, NY</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --tier1:#1a7f37;
+    --tier2:#c8720a;
+    --tier3:#b23b3b;
+    --tier4:#6b6f76;
+    --bg:#f7f7f5;
+    --panel:#ffffff;
+    --ink:#1f2328;
+    --muted:#6b7280;
+    --border:#e5e7eb;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+  }
+  header{
+    padding:16px 20px 10px;
+    background:var(--panel);
+    border-bottom:1px solid var(--border);
+  }
+  header h1{
+    margin:0 0 4px;
+    font-size:19px;
+    font-weight:650;
+  }
+  header p{
+    margin:0;
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.5;
+  }
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    margin-top:10px;
+    font-size:12.5px;
+  }
+  .legend span{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  .dot{
+    width:10px;height:10px;border-radius:50%;display:inline-block;
+  }
+  .summary-wrap{
+    padding:14px 20px 4px;
+    background:var(--panel);
+    border-bottom:1px solid var(--border);
+  }
+  .summary-wrap h2{
+    margin:0 0 8px;
+    font-size:13.5px;
+    font-weight:650;
+    color:var(--ink);
+  }
+  .summary-cards{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-bottom:12px;
+  }
+  .summary-card{
+    flex:1;
+    min-width:130px;
+    border-radius:8px;
+    padding:10px 12px;
+    color:#fff;
+    font-size:12.5px;
+  }
+  .summary-card .n{
+    font-size:22px;
+    font-weight:700;
+    line-height:1.1;
+  }
+  .summary-card .lbl{
+    margin-top:2px;
+    opacity:0.92;
+  }
+  #map{
+    height:60vh;
+    width:100%;
+  }
+  .controls{
+    padding:10px 20px;
+    background:var(--panel);
+    border-bottom:1px solid var(--border);
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+    font-size:13px;
+  }
+  .controls input[type=text], .controls select{
+    padding:6px 8px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:13px;
+  }
+  .controls input[type=text]{
+    flex:1;
+    min-width:180px;
+  }
+  .do-toggle{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:6px 10px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    background:#fafafa;
+    cursor:pointer;
+  }
+  .do-toggle input{
+    cursor:pointer;
+  }
+  .table-wrap{
+    padding:14px 20px 30px;
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    background:var(--panel);
+    font-size:13px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    overflow:hidden;
+  }
+  th, td{
+    text-align:left;
+    padding:8px 10px;
+    border-bottom:1px solid var(--border);
+  }
+  th{
+    background:#fafafa;
+    font-weight:600;
+    cursor:pointer;
+    user-select:none;
+    position:sticky;
+    top:0;
+  }
+  th:hover{ background:#f0f0f0; }
+  .prog-row{ cursor:pointer; }
+  .prog-row:hover td{ background:#eef4ff; }
+  .tier-badge{
+    display:inline-block;
+    padding:2px 8px;
+    border-radius:12px;
+    font-size:11.5px;
+    font-weight:600;
+    color:#fff;
+    white-space:nowrap;
+  }
+  .t1{ background:var(--tier1); }
+  .t2{ background:var(--tier2); }
+  .t3{ background:var(--tier3); }
+  .t4{ background:var(--tier4); }
+  .do-badge{
+    display:inline-block;
+    padding:2px 8px;
+    border-radius:12px;
+    font-size:11.5px;
+    font-weight:600;
+    white-space:nowrap;
+  }
+  .do-yes{ background:#e6f4ea; color:#1a7f37; }
+  .do-no{ background:#f1f1f1; color:#9aa0a6; }
+  .do10-yes{ background:#fff3e0; color:#b45309; }
+  .do20-yes{ background:#f3e8ff; color:#7e22ce; }
+  .do50-yes{ background:#fee2e2; color:#b91c1c; }
+  .do10-no, .do20-no, .do50-no{ background:#f1f1f1; color:#9aa0a6; }
+  .pct-toggle{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:6px 10px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    background:#fafafa;
+    cursor:pointer;
+  }
+  .pct-toggle input{ cursor:pointer; }
+  .count-row{
+    font-size:12.5px;
+    color:var(--muted);
+    margin:8px 0 0;
+  }
+  .note{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:10px;
+    line-height:1.5;
+  }
+
+  .signal-select { min-width: 130px; }
+  .signal-cell { white-space: nowrap; text-align: center; }
+  .signal-btn {
+    border: 1px solid #d0d4d8; background: #fff; border-radius: 7px;
+    padding: 3px 6px; margin: 0 2px; cursor: pointer; font-size: 18px;
+    line-height: 1; opacity: .38; transition: transform .12s, opacity .12s, box-shadow .12s;
+  }
+  .signal-btn:hover { opacity: .8; transform: translateY(-1px); }
+  .signal-btn.selected { opacity: 1; box-shadow: 0 0 0 2px rgba(31,35,40,.16); }
+  .signal-btn.gold.selected { background: #fff7d6; border-color: #c79a00; }
+  .signal-btn.silver.selected { background: #f0f2f4; border-color: #8b949e; }
+  .signal-count { font-size: 12px; color: #57606a; margin-left: 4px; }
+
+
+  .geocode-status {
+    font-size: 12px; color: #57606a; margin-top: 4px;
+  }
+
+  .signal-marker-icon {
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px; line-height:1;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,.5));
+    transition: transform .15s ease;
+  }
+
+  /* --- Tracking toolbar / columns / bulk edit / persistence UI --- */
+  .track-toolbar{ position:relative; }
+  .btn{
+    padding:6px 10px; border:1px solid var(--border); border-radius:6px;
+    background:#fff; font-size:12.5px; cursor:pointer; color:var(--ink);
+  }
+  .btn:hover{ background:#f0f0f0; }
+  .btn-primary{ background:#1f6feb; border-color:#1f6feb; color:#fff; }
+  .btn-primary:hover{ background:#1a5fc7; }
+  .menu-wrap{ position:relative; display:inline-block; }
+  .menu-panel{
+    display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:50;
+    background:#fff; border:1px solid var(--border); border-radius:8px;
+    box-shadow:0 6px 20px rgba(0,0,0,.12); padding:10px; min-width:220px;
+    font-size:12.5px;
+  }
+  .menu-panel.open{ display:block; }
+  .menu-panel label.col-toggle{
+    display:flex; align-items:center; gap:6px; padding:3px 2px; cursor:pointer;
+  }
+  .col-toggle-row{
+    display:flex; align-items:center; justify-content:space-between; gap:6px;
+  }
+  .col-toggle-row .col-toggle{ flex:1; min-width:0; }
+  .col-reorder{ display:flex; gap:2px; flex-shrink:0; }
+  .col-move-btn{
+    width:20px; height:20px; padding:0; line-height:1; font-size:10px;
+    border:1px solid var(--border); border-radius:4px; background:#fff; cursor:pointer; color:var(--ink);
+  }
+  .col-move-btn:hover:not(:disabled){ background:#f0f0f0; }
+  .col-move-btn:disabled{ opacity:0.3; cursor:default; }
+  .panel-field{ display:block; margin-bottom:8px; }
+  .panel-field input[type=text], .panel-field select{
+    display:block; width:100%; margin-top:3px; padding:5px 6px;
+    border:1px solid var(--border); border-radius:6px; font-size:12.5px;
+  }
+  .panel-actions{ display:flex; gap:8px; justify-content:flex-end; }
+  .col-manage-actions{ display:flex; gap:8px; margin-top:6px; border-top:1px solid var(--border); padding-top:6px; }
+  .col-manage-actions .btn{ flex:1; font-size:11.5px; padding:4px 6px; }
+  .menu-panel-wide{ min-width:270px; max-height:70vh; overflow-y:auto; }
+  .filter-field{ margin-bottom:9px; }
+  .filter-field label{ display:block; font-weight:600; margin-bottom:3px; color:var(--ink); }
+  .filter-field select, .filter-field input[type=text]{
+    width:100%; padding:5px 6px; border:1px solid var(--border); border-radius:6px; font-size:12.5px;
+  }
+  .filter-range{ display:flex; gap:6px; }
+  .filter-range input{ width:100%; padding:5px 6px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; }
+  .filter-empty-note{ color:var(--muted); font-size:12px; }
+  .save-status{ font-size:12px; color:var(--muted); margin-left:auto; }
+  .bulk-bar{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    padding:8px 20px; background:#fff7d6; border-bottom:1px solid var(--border);
+    font-size:12.5px;
+  }
+  .bulk-bar select{ padding:5px 6px; border:1px solid var(--border); border-radius:6px; }
+  .table-scroll{ overflow-x:auto; }
+  .cell-input{
+    width:100%; min-width:90px; padding:4px 6px; border:1px solid var(--border);
+    border-radius:5px; font-size:12.5px; background:#fff;
+  }
+  select.cell-input{ min-width:110px; }
+  input[type=number].cell-input{ min-width:70px; }
+  input[type=date].cell-input{ min-width:130px; }
+  td.col-select, th.col-select{ text-align:center; width:30px; }
+  .row-select, #selectAllRows{ cursor:pointer; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>OBGYN Residency Programs — Distance Tiers from 7 Virginia Road, Lake Grove, NY 11755</h1>
+  <p>Rings approximate driving distance from the origin address (see note below on methodology).</p>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--tier1)"></i>Tier 1 — approx. within 2 hrs</span>
+    <span><i class="dot" style="background:var(--tier2)"></i>Tier 2 — approx. within 5 hrs</span>
+    <span><i class="dot" style="background:var(--tier3)"></i>Tier 3 — approx. within 12 hrs</span>
+    <span><i class="dot" style="background:var(--tier4)"></i>Beyond 12 hrs</span>
+    <span><i class="dot" style="background:#2563eb"></i>Origin (Lake Grove, NY)</span>
+  </div>
+</header>
+
+<div class="summary-wrap">
+  <h2>Programs currently shown, by tier</h2>
+  <div class="summary-cards" id="summaryCards"></div>
+</div>
+
+<div id="map"></div>
+
+<div class="controls">
+  <input id="search" type="text" placeholder="Search program or city..." />
+  <select id="signalFilter" class="signal-select">
+    <option value="all">All signals</option>
+    <option value="gold">Gold signal</option>
+    <option value="silver">Silver signal</option>
+  </select>
+  <select id="tierFilter">
+    <option value="all">All tiers</option>
+    <option value="1">Tier 1 (~2 hrs)</option>
+    <option value="2">Tier 2 (~5 hrs)</option>
+    <option value="3">Tier 3 (~12 hrs)</option>
+    <option value="4">Beyond 12 hrs</option>
+  </select>
+  <label class="do-toggle">
+    <input type="checkbox" id="doFilter" />
+    DO applicants accepted (past cycles) only
+  </label>
+  <label class="pct-toggle">
+    <input type="checkbox" id="do10Filter" />
+    ≥10% DO applicants
+  </label>
+  <label class="pct-toggle">
+    <input type="checkbox" id="do20Filter" />
+    ≥20% DO applicants
+  </label>
+  <label class="pct-toggle">
+    <input type="checkbox" id="do50Filter" />
+    ≥50% DO applicants
+  </label>
+  <span class="count-row" id="countRow"></span><span class="geocode-status" id="geocodeStatus"></span>
+</div>
+
+<div class="controls track-toolbar">
+  <div class="menu-wrap">
+    <button type="button" class="btn" id="columnsBtn">Columns ▾</button>
+    <div class="menu-panel" id="columnsPanel"></div>
+  </div>
+  <div class="menu-wrap">
+    <button type="button" class="btn" id="filtersBtn">Filters ▾</button>
+    <div class="menu-panel menu-panel-wide" id="filtersPanel"></div>
+  </div>
+  <div class="menu-wrap">
+    <button type="button" class="btn" id="addColumnBtn">+ Add Column</button>
+    <div class="menu-panel" id="addColumnPanel">
+      <label class="panel-field">Column name
+        <input type="text" id="newColName" placeholder="e.g. Notes" maxlength="40">
+      </label>
+      <label class="panel-field">Field type
+        <select id="newColType">
+          <option value="text">Text</option>
+          <option value="number">Number</option>
+          <option value="date">Date</option>
+          <option value="yesno">Yes / No</option>
+        </select>
+      </label>
+      <div class="panel-actions">
+        <button type="button" class="btn btn-primary" id="createColumnBtn">Add</button>
+        <button type="button" class="btn" id="cancelColumnBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <button type="button" class="btn" id="exportBtn">Export data</button>
+  <button type="button" class="btn" id="importBtn">Import data</button>
+  <input type="file" id="importFile" accept="application/json" style="display:none">
+  <button type="button" class="btn" id="syncNowBtn">Sync now</button>
+  <span class="save-status" id="syncStatus"></span>
+  <span class="save-status" id="saveStatus"></span>
+</div>
+
+<div class="bulk-bar" id="bulkBar" style="display:none;">
+  <span id="bulkCount"></span>
+  <select id="bulkField"></select>
+  <span id="bulkValueContainer"></span>
+  <button type="button" class="btn btn-primary" id="bulkApplyBtn">Apply to selected</button>
+  <button type="button" class="btn" id="bulkClearBtn">Clear selection</button>
+</div>
+
+<div class="table-wrap">
+  <div class="table-scroll">
+  <table id="programTable">
+    <thead>
+      <tr id="theadRow"></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  </div>
+  <p class="note">
+    <strong>Methodology note:</strong> True door-to-door drive times require a live routing engine, which
+    wasn't available for this build. Instead, each program's tier was estimated from straight-line (great-circle)
+    distance from the origin address, using radius cutoffs calibrated for realistic road-network detour and
+    average highway speed on the East Coast (~95 mi ≈ 2 hrs, ~235 mi ≈ 5 hrs, ~620 mi ≈ 12 hrs). Programs near a
+    tier boundary, in areas with slower roads (dense NYC/NJ traffic) or faster interstate corridors, could sit
+    one tier off from an actual routed drive time. City-level coordinates (not exact street addresses) were used
+    for plotting, since only program name/city/state were provided.
+    <br><br>
+    <strong>DO acceptance:</strong> "DO applicants accepted" reflects the 128-program filtered list you provided
+    from FREIDA (a filter for programs that have accepted DO applicants in past cycles), cross-matched by
+    program name and city against the full 202-program list. Programs not on that filtered list are marked as
+    not accepting DO applicants per this filter — this reflects FREIDA's historical-match data, not a guarantee
+    of a program's current policy.
+    <br><br>
+    <strong>DO percentage filters:</strong> The "≥10% DO" and "≥20% DO" fields are based directly on the two
+    additional FREIDA program lists provided. The 10% list contains 99 programs and the 20% list contains 74
+    programs. A program marked "Yes" for ≥20% is also marked "Yes" for ≥10%. These are historical FREIDA
+    search-result matches and should not be interpreted as a current-cycle guarantee.
+  </p>
+</div>
+
+<script>
+const PROGRAMS = [{"name":"Rutgers Health/Cooperman Barnabas Medical Center Program","city":"Livingston","state":"NJ","lat":40.7959,"lon":-74.3149,"dist_mi":62.9,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Zucker School of Medicine at Hofstra/Northwell Program","city":"Manhasset","state":"NY","lat":40.7898,"lon":-73.6987,"dist_mi":30.9,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Mass General Brigham/Brigham and Women's Hospital/Massachusetts General Hospital Program","city":"Boston","state":"MA","lat":42.3601,"lon":-71.0589,"dist_mi":148.6,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Montefiore Medical Center/Albert Einstein College of Medicine Program","city":"Bronx","state":"NY","lat":40.8448,"lon":-73.8648,"dist_mi":39.2,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Ohio State University/Mount Carmel Hospital Program","city":"Columbus","state":"OH","lat":39.9612,"lon":-82.9988,"dist_mi":523.4,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Indiana University School of Medicine Program","city":"Indianapolis","state":"IN","lat":39.7684,"lon":-86.1581,"dist_mi":690.7,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Detroit Medical Center/Wayne State University Program","city":"Detroit","state":"MI","lat":42.3314,"lon":-83.0458,"dist_mi":522.9,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"NYU Grossman School of Medicine Program","city":"New York","state":"NY","lat":40.7128,"lon":-74.006,"dist_mi":47.7,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"UPMC Medical Education Program","city":"Pittsburgh","state":"PA","lat":40.4406,"lon":-79.9959,"dist_mi":361.8,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"University of Connecticut Program","city":"Farmington","state":"CT","lat":41.7198,"lon":-72.8317,"dist_mi":61.5,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"MedStar Health Georgetown University/Washington Hospital Center Program","city":"Washington","state":"DC","lat":38.9072,"lon":-77.0369,"dist_mi":247.7,"tier":3,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Emory University School of Medicine Program","city":"Atlanta","state":"GA","lat":33.749,"lon":-84.388,"dist_mi":789.4,"tier":4,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Johns Hopkins University Program","city":"Baltimore","state":"MD","lat":39.2904,"lon":-76.6122,"dist_mi":214.2,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"University at Buffalo Program","city":"Buffalo","state":"NY","lat":42.8864,"lon":-78.8784,"dist_mi":328.0,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Icahn School of Medicine at Mount Sinai/Mount Sinai Hospital Program","city":"New York","state":"NY","lat":40.7128,"lon":-74.006,"dist_mi":47.7,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Duke University Hospital Program","city":"Durham","state":"NC","lat":35.994,"lon":-78.8986,"dist_mi":459.0,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Sidney Kimmel Medical College at Thomas Jefferson University/TJUH Program","city":"Philadelphia","state":"PA","lat":39.9526,"lon":-75.1652,"dist_mi":124.6,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Yale-New Haven Medical Center Program","city":"New Haven","state":"CT","lat":41.3083,"lon":-72.9279,"dist_mi":32.8,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"University of Miami/Jackson Health System Program","city":"Miami","state":"FL","lat":25.7617,"lon":-80.1918,"dist_mi":1119.1,"tier":4,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"University of Maryland Program","city":"Baltimore","state":"MD","lat":39.2904,"lon":-76.6122,"dist_mi":214.2,"tier":2,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Corewell Health-Grand Rapids/Michigan State University Program","city":"Grand Rapids","state":"MI","lat":42.9634,"lon":-85.6681,"dist_mi":661.0,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"University of Rochester Medical Center Program","city":"Rochester","state":"NY","lat":43.1566,"lon":-77.6088,"dist_mi":280.1,"tier":3,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"TriHealth (Bethesda North and Good Samaritan Hospitals) Program","city":"Cincinnati","state":"OH","lat":39.1031,"lon":-84.512,"dist_mi":615.0,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Cleveland Clinic Foundation Program","city":"Cleveland","state":"OH","lat":41.4993,"lon":-81.6944,"dist_mi":448.2,"tier":3,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"University of Pennsylvania Health System Program","city":"Philadelphia","state":"PA","lat":39.9526,"lon":-75.1652,"dist_mi":124.6,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Women and Infants Hospital of Rhode Island/Brown University Program","city":"Providence","state":"RI","lat":41.824,"lon":-71.4128,"dist_mi":110.8,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"George Washington University Program","city":"Washington","state":"DC","lat":38.9072,"lon":-77.0369,"dist_mi":247.7,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Beth Israel Deaconess Medical Center Program","city":"Boston","state":"MA","lat":42.3601,"lon":-71.0589,"dist_mi":148.6,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Icahn School of Medicine at Mount Sinai/West Program","city":"New York","state":"NY","lat":40.7128,"lon":-74.006,"dist_mi":47.7,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"New York Presbyterian Hospital (Cornell Campus) Program","city":"New York","state":"NY","lat":40.7128,"lon":-74.006,"dist_mi":47.7,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Maimonides Medical Center Program","city":"Brooklyn","state":"NY","lat":40.6782,"lon":-73.9442,"dist_mi":45.1,"tier":1,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"University of North Carolina Hospitals Program","city":"Chapel Hill","state":"NC","lat":35.9132,"lon":-79.0558,"dist_mi":469.0,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Carolinas Medical Center Program","city":"Charlotte","state":"NC","lat":35.2271,"lon":-80.8431,"dist_mi":572.4,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Summa Health System/NEOMED Program","city":"Akron","state":"OH","lat":41.0814,"lon":-81.519,"dist_mi":438.6,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"University of Cincinnati Medical Center/College of Medicine Program","city":"Cincinnati","state":"OH","lat":39.1031,"lon":-84.512,"dist_mi":615.0,"tier":3,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"University of Pennsylvania Health System/Pennsylvania Hospital Program","city":"Philadelphia","state":"PA","lat":39.9526,"lon":-75.1652,"dist_mi":124.6,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Temple University Hospital Program","city":"Philadelphia","state":"PA","lat":39.9526,"lon":-75.1652,"dist_mi":124.6,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Prisma Health/University of South Carolina SOM Greenville (Greenville) Program","city":"Greenville","state":"SC","lat":34.8526,"lon":-82.394,"dist_mi":653.8,"tier":4,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Christiana Care Health Services Program","city":"Newark","state":"DE","lat":39.6837,"lon":-75.7497,"dist_mi":160.8,"tier":2,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Florida State University College of Medicine Program","city":"Pensacola","state":"FL","lat":30.4213,"lon":-87.2169,"dist_mi":1068.3,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Ascension Illinois/Saint Alexius Program","city":"Hoffman Estates","state":"IL","lat":42.0687,"lon":-88.1523,"dist_mi":782.1,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"UMass Chan-Baystate Program","city":"Springfield","state":"MA","lat":42.1015,"lon":-72.5898,"dist_mi":90.3,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Tufts Medical Center Program","city":"Boston","state":"MA","lat":42.3601,"lon":-71.0589,"dist_mi":148.6,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"UMass Chan Medical School Program","city":"Worcester","state":"MA","lat":42.2626,"lon":-71.8023,"dist_mi":118.5,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Corewell Health William Beaumont University Hospital Program","city":"Royal Oak","state":"MI","lat":42.4895,"lon":-83.1446,"dist_mi":529.5,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"University of Michigan Program","city":"Ann Arbor","state":"MI","lat":42.2808,"lon":-83.743,"dist_mi":557.8,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"BronxCare Health System Program","city":"Bronx","state":"NY","lat":40.8448,"lon":-73.8648,"dist_mi":39.2,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"NYU Grossman Long Island School of Medicine Program","city":"Mineola","state":"NY","lat":40.7495,"lon":-73.6412,"dist_mi":28.5,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Albany Med Health System Program","city":"Albany","state":"NY","lat":42.6526,"lon":-73.7562,"dist_mi":128.5,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"New York Presbyterian Hospital (Columbia Campus) Program","city":"New York","state":"NY","lat":40.7128,"lon":-74.006,"dist_mi":47.7,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"SUNY Downstate Health Sciences University Program","city":"Brooklyn","state":"NY","lat":40.6782,"lon":-73.9442,"dist_mi":45.1,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Wake Forest University Baptist Medical Center Program","city":"Winston Salem","state":"NC","lat":36.0999,"lon":-80.2442,"dist_mi":506.3,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"OhioHealth/Doctors Hospital Program","city":"Columbus","state":"OH","lat":39.9612,"lon":-82.9988,"dist_mi":523.4,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Case Western Reserve University/University Hospitals Cleveland Medical Center Program","city":"Cleveland","state":"OH","lat":41.4993,"lon":-81.6944,"dist_mi":448.2,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Wright State University Program","city":"Dayton","state":"OH","lat":39.7589,"lon":-84.1916,"dist_mi":588.1,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"OhioHealth/Riverside Methodist Hospital Program","city":"Columbus","state":"OH","lat":39.9612,"lon":-82.9988,"dist_mi":523.4,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Lehigh Valley Health Network Program","city":"Allentown","state":"PA","lat":40.6084,"lon":-75.4902,"dist_mi":125.5,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Allegheny Health Network Medical Education Consortium (WPH) Program","city":"Pittsburgh","state":"PA","lat":40.4406,"lon":-79.9959,"dist_mi":361.8,"tier":3,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Abington Memorial Hospital Program","city":"Abington","state":"PA","lat":40.1226,"lon":-75.1188,"dist_mi":116.9,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"St Luke's University Hospital Program","city":"Easton","state":"PA","lat":40.6884,"lon":-75.2207,"dist_mi":110.8,"tier":2,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Inova Fairfax Medical Campus Program","city":"Falls Church","state":"VA","lat":38.8823,"lon":-77.1711,"dist_mi":254.6,"tier":3,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Virginia Commonwealth University Health System Program","city":"Richmond","state":"VA","lat":37.5407,"lon":-77.436,"dist_mi":325.5,"tier":3,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Old Dominion University Program","city":"Norfolk","state":"VA","lat":36.8508,"lon":-76.2859,"dist_mi":325.0,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"National Capital Consortium Program","city":"Bethesda","state":"MD","lat":38.9847,"lon":-77.0947,"dist_mi":247.3,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Virtua Program","city":"Voorhees","state":"NJ","lat":39.8437,"lon":-74.9646,"dist_mi":119.9,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"HCA Healthcare/Mercer University School of Medicine/Memorial Health University Medical Center Program","city":"Savannah","state":"GA","lat":32.0809,"lon":-81.0912,"dist_mi":750.3,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Loyola University Medical Center Program","city":"Maywood","state":"IL","lat":41.8792,"lon":-87.8409,"dist_mi":765.9,"tier":4,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Ascension St Vincent Hospital Indianapolis Program","city":"Indianapolis","state":"IN","lat":39.7684,"lon":-86.1581,"dist_mi":690.7,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"MaineHealth Program","city":"Portland","state":"ME","lat":43.6591,"lon":-70.2568,"dist_mi":242.6,"tier":3,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Boston University Medical Center Program","city":"Boston","state":"MA","lat":42.3601,"lon":-71.0589,"dist_mi":148.6,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Henry Ford Health/Henry Ford Hospital Program","city":"Detroit","state":"MI","lat":42.3314,"lon":-83.0458,"dist_mi":522.9,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Henry Ford Providence Hospital Program","city":"Southfield","state":"MI","lat":42.4734,"lon":-83.2219,"dist_mi":533.2,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Cooper Medical School of Rowan University/Cooper University Hospital Program","city":"Camden","state":"NJ","lat":39.9259,"lon":-75.1196,"dist_mi":123.5,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Hackensack Meridian Health Program (Neptune)","city":"Neptune","state":"NJ","lat":40.2043,"lon":-74.0432,"dist_mi":66.4,"tier":1,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Saint Peter's University Hospital/Rutgers Robert Wood Johnson Medical School Program","city":"New Brunswick","state":"NJ","lat":40.4862,"lon":-74.4518,"dist_mi":74.6,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Rutgers Health/Robert Wood Johnson Medical School Program","city":"New Brunswick","state":"NJ","lat":40.4862,"lon":-74.4518,"dist_mi":74.6,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Atlantic Health System/Morristown Medical Center Program","city":"Morristown","state":"NJ","lat":40.7968,"lon":-74.4815,"dist_mi":71.6,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Zucker School of Medicine at Hofstra/Northwell at South Shore University Hospital Program","city":"Bay Shore","state":"NY","lat":40.7237,"lon":-73.2454,"dist_mi":11.4,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Westchester Medical Center Program","city":"Valhalla","state":"NY","lat":41.0779,"lon":-73.7757,"dist_mi":37.8,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"SUNY Upstate Medical University Program","city":"Syracuse","state":"NY","lat":43.0481,"lon":-76.1474,"dist_mi":217.3,"tier":2,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Stony Brook Medicine/University Hospital Program","city":"Stony Brook","state":"NY","lat":40.9126,"lon":-73.1404,"dist_mi":4.2,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Nassau University Medical Center Program","city":"East Meadow","state":"NY","lat":40.7137,"lon":-73.559,"dist_mi":25.2,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"New York-Presbyterian Brooklyn Methodist Hospital Program","city":"Brooklyn","state":"NY","lat":40.6782,"lon":-73.9442,"dist_mi":45.1,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Rochester Regional Health Program","city":"Rochester","state":"NY","lat":43.1566,"lon":-77.6088,"dist_mi":280.1,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Novant Health New Hanover Regional Medical Center Program","city":"Wilmington","state":"NC","lat":34.2257,"lon":-77.9447,"dist_mi":528.8,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"ECU Health Medical Center/East Carolina University Program","city":"Greenville","state":"NC","lat":35.6127,"lon":-77.3663,"dist_mi":429.4,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Cleveland Clinic Foundation/Akron General Program","city":"Akron","state":"OH","lat":41.0814,"lon":-81.519,"dist_mi":438.6,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Aultman Hospital/NEOMED Program","city":"Canton","state":"OH","lat":40.7989,"lon":-81.3784,"dist_mi":431.9,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"The MetroHealth System/Case Western Reserve University Program","city":"Cleveland","state":"OH","lat":41.4993,"lon":-81.6944,"dist_mi":448.2,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"University of Toledo Program","city":"Toledo","state":"OH","lat":41.6528,"lon":-83.5379,"dist_mi":543.9,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Main Line Health System/Lankenau Medical Center Program","city":"Wynnewood","state":"PA","lat":40.0037,"lon":-75.2949,"dist_mi":128.9,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Wellspan Health/York Hospital Program","city":"York","state":"PA","lat":39.9626,"lon":-76.7277,"dist_mi":199.8,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Tower Health/Reading Hospital Program","city":"West Reading","state":"PA","lat":40.3373,"lon":-75.9327,"dist_mi":152.1,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Penn State Milton S Hershey Medical Center Program","city":"Hershey","state":"PA","lat":40.2859,"lon":-76.6502,"dist_mi":189.7,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Jefferson Health Medical Education/Jefferson Einstein Philadelphia Hospital Program","city":"Philadelphia","state":"PA","lat":39.9526,"lon":-75.1652,"dist_mi":124.6,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Prisma Health/University of South Carolina SOM Columbia (Columbia) Program","city":"Columbia","state":"SC","lat":34.0007,"lon":-81.0348,"dist_mi":642.2,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Naval Medical Center (Portsmouth) Program","city":"Portsmouth","state":"VA","lat":36.8354,"lon":-76.2983,"dist_mi":326.3,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"University of Virginia Medical Center Program","city":"Charlottesville","state":"VA","lat":38.0293,"lon":-78.4767,"dist_mi":346.3,"tier":3,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"St Francis Hospital and Medical Center Program","city":"Hartford","state":"CT","lat":41.7658,"lon":-72.6734,"dist_mi":66.9,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"HCA Florida Healthcare/USF Morsani College of Medicine GME - Tampa South/Brandon Hospital Program","city":"Brandon","state":"FL","lat":27.9378,"lon":-82.2859,"dist_mi":1033.0,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Parkview Health Program","city":"Fort Wayne","state":"IN","lat":41.0793,"lon":-85.1394,"dist_mi":627.0,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Memorial Healthcare System (Hollywood Florida) Program","city":"Pembroke Pines","state":"FL","lat":26.0031,"lon":-80.2325,"dist_mi":1104.2,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Orlando Health Bayfront Hospital Program","city":"St Petersburg","state":"FL","lat":27.7676,"lon":-82.6403,"dist_mi":1053.6,"tier":4,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Atrium Health Navicent The Medical Center/Mercer University School of Medicine Program","city":"Macon","state":"GA","lat":32.8407,"lon":-83.6324,"dist_mi":801.9,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Mount Sinai Hospital Medical Center of Chicago Program","city":"Chicago","state":"IL","lat":41.8781,"lon":-87.6298,"dist_mi":755.1,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"University of Illinois College of Medicine at Peoria Program","city":"Peoria","state":"IL","lat":40.6936,"lon":-89.589,"dist_mi":860.8,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Advocate Health Care/Advocate Lutheran General Hospital Program","city":"Park Ridge","state":"IL","lat":42.0111,"lon":-87.8406,"dist_mi":766.0,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Anne Arundel Medical Center Program","city":"Annapolis","state":"MD","lat":38.9784,"lon":-76.4922,"dist_mi":221.0,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Sinai Hospital of Baltimore Program","city":"Baltimore","state":"MD","lat":39.2904,"lon":-76.6122,"dist_mi":214.2,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Trinity Health Oakland/Wayne State University Program","city":"Pontiac","state":"MI","lat":42.6389,"lon":-83.291,"dist_mi":538.5,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Western Michigan University Homer Stryker MD School of Medicine Program","city":"Kalamazoo","state":"MI","lat":42.2917,"lon":-85.5872,"dist_mi":651.7,"tier":4,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Henry Ford St John Hospital Program","city":"Detroit","state":"MI","lat":42.3314,"lon":-83.0458,"dist_mi":522.9,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Central Michigan University College of Medicine/CMU Medical Education Partners Program","city":"Saginaw","state":"MI","lat":43.4195,"lon":-83.9508,"dist_mi":582.3,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Trinity Health Ann Arbor Hospital Program","city":"Ypsilanti","state":"MI","lat":42.2411,"lon":-83.613,"dist_mi":550.9,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Corewell Health (Dearborn) Program","city":"Dearborn","state":"MI","lat":42.3223,"lon":-83.1763,"dist_mi":529.4,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Hurley Medical Center/Michigan State University Program","city":"Flint","state":"MI","lat":43.0125,"lon":-83.6875,"dist_mi":563.1,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"University of Michigan Health - Sparrow/Michigan State University Program","city":"Lansing","state":"MI","lat":42.7325,"lon":-84.5555,"dist_mi":602.9,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Dartmouth-Hitchcock/Mary Hitchcock Memorial Hospital Program","city":"Lebanon","state":"NH","lat":43.6425,"lon":-72.2517,"dist_mi":197.5,"tier":2,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Hackensack Meridian Health Program (Hackensack)","city":"Hackensack","state":"NJ","lat":40.8859,"lon":-74.0435,"dist_mi":48.6,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Rutgers Health/Monmouth Medical Center Program","city":"Long Branch","state":"NJ","lat":40.3043,"lon":-73.9924,"dist_mi":59.8,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Rutgers Health/Newark Beth Israel Medical Center Program","city":"Newark","state":"NJ","lat":40.7357,"lon":-74.1724,"dist_mi":55.9,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Icahn School of Medicine at Mount Sinai/South Nassau Program","city":"Rockville Centre","state":"NY","lat":40.6584,"lon":-73.6412,"dist_mi":30.7,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Good Samaritan University Hospital Program","city":"West Islip","state":"NY","lat":40.7051,"lon":-73.2946,"dist_mi":14.0,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Flushing Hospital Medical Center Program","city":"Flushing","state":"NY","lat":40.7654,"lon":-73.8318,"dist_mi":38.0,"tier":1,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Zucker School of Medicine at Hofstra/Northwell at Lenox Hill Hospital Program","city":"New York","state":"NY","lat":40.7128,"lon":-74.006,"dist_mi":47.7,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Zucker School of Medicine at Hofstra/Northwell at Staten Island University Hospital Program","city":"Staten Island","state":"NY","lat":40.5795,"lon":-74.1502,"dist_mi":57.5,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Brooklyn Hospital Center Program","city":"Brooklyn","state":"NY","lat":40.6782,"lon":-73.9442,"dist_mi":45.1,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Richmond University Medical Center Program","city":"Staten Island","state":"NY","lat":40.5795,"lon":-74.1502,"dist_mi":57.5,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"University at Buffalo (Sisters of Charity) Program","city":"Buffalo","state":"NY","lat":42.8864,"lon":-78.8784,"dist_mi":328.0,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Jamaica Hospital Medical Center Program","city":"Richmond Hill","state":"NY","lat":40.6968,"lon":-73.8316,"dist_mi":39.1,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Lincoln Medical and Mental Health Center Program","city":"Bronx","state":"NY","lat":40.8448,"lon":-73.8648,"dist_mi":39.2,"tier":1,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Cape Fear Valley Health Program","city":"Fayetteville","state":"NC","lat":35.0527,"lon":-78.8784,"dist_mi":509.0,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Mercy St Vincent Medical Center Program","city":"Toledo","state":"OH","lat":41.6528,"lon":-83.5379,"dist_mi":543.9,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Geisinger Health System Program","city":"Danville","state":"PA","lat":40.9612,"lon":-76.6111,"dist_mi":182.7,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"University of Vermont Medical Center Program","city":"Burlington","state":"VT","lat":44.4759,"lon":-73.2121,"dist_mi":250.2,"tier":3,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Carilion Clinic-Virginia Tech Carilion School of Medicine Program","city":"Roanoke","state":"VA","lat":37.271,"lon":-79.9414,"dist_mi":441.9,"tier":3,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Marshall University School of Medicine Program","city":"Huntington","state":"WV","lat":38.4192,"lon":-82.4452,"dist_mi":523.9,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Bridgeport Hospital/Yale University Program","city":"Bridgeport","state":"CT","lat":41.1865,"lon":-73.1952,"dist_mi":23.2,"tier":1,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Stamford Hospital/Columbia University College of Physicians and Surgeons Program","city":"Stamford","state":"CT","lat":41.0534,"lon":-73.5387,"dist_mi":26.0,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Howard University Program","city":"Washington","state":"DC","lat":38.9072,"lon":-77.0369,"dist_mi":247.7,"tier":3,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"University of Central Florida/HCA Florida Healthcare (Gainesville) Program","city":"Gainesville","state":"FL","lat":29.6516,"lon":-82.3248,"dist_mi":931.1,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"New York Medical College Program","city":"Passaic","state":"NJ","lat":40.8568,"lon":-74.1285,"dist_mi":53.0,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Carle Foundation Hospital Program","city":"Urbana","state":"IL","lat":40.1106,"lon":-88.2073,"dist_mi":793.8,"tier":4,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"HCA Florida Healthcare/Westside/Northwest Hospital Program","city":"Margate","state":"FL","lat":26.2445,"lon":-80.2064,"dist_mi":1088.0,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"AdventHealth Florida (Orlando) Program","city":"Orlando","state":"FL","lat":28.5383,"lon":-81.3792,"dist_mi":970.8,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"UPMC Medical Education (Harrisburg) Program","city":"Harrisburg","state":"PA","lat":40.2732,"lon":-76.8867,"dist_mi":202.0,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Capital Health Regional Medical Center Program","city":"Pennington","state":"NJ","lat":40.3287,"lon":-74.7929,"dist_mi":95.3,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Advocate Health Care/Advocate Illinois Masonic Medical Center Program","city":"Chicago","state":"IL","lat":41.8781,"lon":-87.6298,"dist_mi":755.1,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"University of Michigan Health-West Program","city":"Wyoming","state":"MI","lat":42.9134,"lon":-85.7053,"dist_mi":662.4,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Trinity Health Muskegon Program","city":"Muskegon","state":"MI","lat":43.2342,"lon":-86.2484,"dist_mi":692.8,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Henry Ford Genesys Hospital Program","city":"Grand Blanc","state":"MI","lat":42.9267,"lon":-83.6288,"dist_mi":559.0,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Henry Ford Warren Hospital Program","city":"Warren","state":"MI","lat":42.5145,"lon":-83.0146,"dist_mi":523.2,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Henry Ford Health/Henry Ford Wyandotte Hospital Program","city":"Wyandotte","state":"MI","lat":42.2142,"lon":-83.1499,"dist_mi":527.1,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Henry Ford Health/Henry Ford Macomb Hospital Program","city":"Clinton Township","state":"MI","lat":42.5931,"lon":-82.9163,"dist_mi":519.2,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"McLaren Health Care/Macomb/MSU Program","city":"Mount Clemens","state":"MI","lat":42.5975,"lon":-82.8794,"dist_mi":517.4,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"McLaren Health Care/Greater Lansing/MSU Program","city":"Lansing","state":"MI","lat":42.7325,"lon":-84.5555,"dist_mi":602.9,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Inspira Health Network/Inspira Medical Center Vineland Program","city":"Vineland","state":"NJ","lat":39.4864,"lon":-75.0257,"dist_mi":138.3,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"St Joseph's University Medical Center Program","city":"Paterson","state":"NJ","lat":40.9168,"lon":-74.1718,"dist_mi":55.4,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Rutgers Health/Jersey City Medical Center Program","city":"Livingston","state":"NJ","lat":40.7959,"lon":-74.3149,"dist_mi":62.9,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"NYC Health & Hospitals/South Brooklyn Health Program","city":"Brooklyn","state":"NY","lat":40.6782,"lon":-73.9442,"dist_mi":45.1,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"St John's Episcopal Hospital-South Shore Program","city":"Far Rockaway","state":"NY","lat":40.6059,"lon":-73.7554,"dist_mi":37.7,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Icahn School of Medicine at Mount Sinai/NYC Health and Hospitals (Queens) Program","city":"Jamaica","state":"NY","lat":40.7027,"lon":-73.789,"dist_mi":36.8,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Womack Army Medical Center Program","city":"Fort Bragg","state":"NC","lat":35.1391,"lon":-79.006,"dist_mi":508.6,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Kettering Health Network Program","city":"Dayton","state":"OH","lat":39.7589,"lon":-84.1916,"dist_mi":588.1,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Riverside Regional Medical Center Program","city":"Newport News","state":"VA","lat":37.0871,"lon":-76.473,"dist_mi":316.7,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Charleston Area Medical Center/CAMC Institute for Academic Medicine Program","city":"Charleston","state":"WV","lat":38.3498,"lon":-81.6326,"dist_mi":485.1,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"West Virginia University Program","city":"Morgantown","state":"WV","lat":39.6295,"lon":-79.9559,"dist_mi":370.5,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":false,"do_50pct":false},{"name":"Aurora Health Care Program","city":"Milwaukee","state":"WI","lat":43.0389,"lon":-87.9065,"dist_mi":773.9,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Nuvance Health Consortium (Danbury Hospital) Program","city":"Danbury","state":"CT","lat":41.3948,"lon":-73.454,"dist_mi":41.2,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"University of Central Florida/HCA Florida Healthcare (Greater Orlando/Osceola) Program","city":"Kissimmee","state":"FL","lat":28.292,"lon":-81.4076,"dist_mi":986.8,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Mount Sinai Medical Center of Florida Inc Program","city":"Miami Beach","state":"FL","lat":25.7907,"lon":-80.13,"dist_mi":1115.9,"tier":4,"accepts_do":true,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"Holy Name Medical Center Program","city":"Teaneck","state":"NJ","lat":40.8976,"lon":-74.016,"dist_mi":47.2,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"HCA Healthcare/Mercer University School of Medicine/Summerville Medical Center Program","city":"Summerville","state":"SC","lat":33.0185,"lon":-80.1756,"dist_mi":666.8,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"AdventHealth Florida (Tampa) Program","city":"Tampa","state":"FL","lat":27.9506,"lon":-82.4572,"dist_mi":1037.1,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Icahn School of Medicine at Mount Sinai/Valley Health Program","city":"Paramus","state":"NJ","lat":40.9445,"lon":-74.0754,"dist_mi":50.5,"tier":1,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"University of Central Florida/HCA Florida Healthcare (Pensacola) Program","city":"Pensacola","state":"FL","lat":30.4213,"lon":-87.2169,"dist_mi":1068.3,"tier":4,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":false},{"name":"Corewell Health (Farmington Hills) Program","city":"Farmington Hills","state":"MI","lat":42.4989,"lon":-83.3677,"dist_mi":540.8,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Corewell Health (Trenton) Program","city":"Trenton","state":"MI","lat":42.1392,"lon":-83.1913,"dist_mi":528.6,"tier":3,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Jefferson Health New Jersey Program","city":"Stratford","state":"NJ","lat":39.8332,"lon":-75.0193,"dist_mi":122.7,"tier":2,"accepts_do":true,"do_10pct":true,"do_20pct":true,"do_50pct":true},{"name":"Wyckoff Heights Medical Center Program","city":"Brooklyn","state":"NY","lat":40.6782,"lon":-73.9442,"dist_mi":45.1,"tier":1,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false},{"name":"TidalHealth Program","city":"Salisbury","state":"MD","lat":38.3607,"lon":-75.5994,"dist_mi":217.3,"tier":2,"accepts_do":false,"do_10pct":false,"do_20pct":false,"do_50pct":false}];
+</script>
+<script>
+const TIER_COLORS = {1:"#1a7f37",2:"#c8720a",3:"#b23b3b",4:"#6b6f76"};
+const TIER_LABELS = {1:"Tier 1 (~2 hrs)",2:"Tier 2 (~5 hrs)",3:"Tier 3 (~12 hrs)",4:"Beyond 12 hrs"};
+
+// Map state is pre-declared here (outside the map's own script block) so
+// the table below can always reference it safely -- even if the Leaflet
+// map fails to load (e.g. the CDN is unreachable), the table will still
+// render fully instead of coming up empty.
+let map = null;
+let markers = [];
+let markerByKey = new Map();
+
+// Focus the map on a program: pan/zoom to it, open its popup, and give it a brief pulse
+let lastFocusedMarker = null;
+function focusProgram(name, city) {
+  const key = name + '|' + city;
+  const m = markerByKey.get(key);
+  if (!m) return;
+
+  if (lastFocusedMarker && lastFocusedMarker !== m) {
+    setMarkerFocus(lastFocusedMarker, false);
+  }
+
+  map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 9), { duration: 0.6 });
+  m.openPopup();
+  setMarkerFocus(m, true);
+  lastFocusedMarker = m;
+
+  // Scroll the map into view in case the user clicked from far down the table
+  document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Table + summary
+const tbody = document.getElementById('tbody');
+const countRow = document.getElementById('countRow');
+const summaryCards = document.getElementById('summaryCards');
+let sortKey = 'tier';
+let sortAsc = true;
+
+// Signal selections are optional. A program can have one signal: Gold, Silver, or none.
+// (Loaded/declared further down, alongside the other persisted trackers, once
+// loadJSON() has been defined.)
+const MAX_GOLD = 3;
+const MAX_SILVER = 15;
+const SIGNAL_COLORS = { gold: '#d4af37', silver: '#a8adb4' };
+
+function signalKey(p) { return p.name + '|' + p.city; }
+
+// ============================================================================
+// Application tracking: persistence, custom columns, column visibility,
+// bulk editing. All application-tracking data is saved to this browser's
+// localStorage, scoped to wherever this file is hosted/opened from, so it
+// survives reloads and future sessions on this device/browser.
+// ============================================================================
+const LS_ROWDATA = 'obgynTracker.rowData.v1';
+const LS_CUSTOM_COLS = 'obgynTracker.customColumns.v1';
+const LS_COL_VIS = 'obgynTracker.columnVisibility.v1';
+const LS_COL_ORDER = 'obgynTracker.columnOrder.v1';
+const LS_SIGNALS = 'obgynTracker.signalSelections.v1';
+
+// ----------------------------------------------------------------------
+// Shared sync (Google Sheet backend via Apps Script Web App)
+// ----------------------------------------------------------------------
+// Paste the "Web app URL" you get from deploying Code.gs here. Leave it
+// blank ('') to keep this tracker local-only (localStorage on this
+// browser only, same as before).
+const SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbxy7p8FiKJQHLCJlK_BBfmI0yBbII2xGxOteqQeB2MBSGY9ByORzj4GZcu78wh22nnI/exec';
+
+const SYNC_POLL_MS = 20000;     // how often to check the sheet for the other person's edits
+const SYNC_DEBOUNCE_MS = 1200;  // wait this long after your last edit before pushing
+let syncPushTimer = null;
+let syncPollTimer = null;
+let lastLocalEditAt = 0;
+let syncInFlight = false;
+
+const APP_STATUS_OPTIONS = ['Won\'t Apply', 'Will Apply', 'Applied', 'Interview Request', 'Interview Scheduled', 'Interview Complete'];
+const YES_NO_OPTIONS = ['Yes', 'No'];
+
+function loadJSON(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed == null ? fallback : parsed;
+  } catch (err) {
+    console.error('Failed to read saved data for', key, err);
+    return fallback;
+  }
+}
+function saveJSON(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (err) {
+    console.error('Failed to save data for', key, err);
+    return false;
+  }
+}
+
+let rowDataStore = loadJSON(LS_ROWDATA, {});
+let customColumns = loadJSON(LS_CUSTOM_COLS, []); // [{id,label,type}]
+let columnVisibility = loadJSON(LS_COL_VIS, {});   // {colId: boolean}
+let columnOrder = loadJSON(LS_COL_ORDER, null);    // [colId, ...] left-to-right order, excluding 'select'; null = use default
+const signalSelections = new Map(Object.entries(loadJSON(LS_SIGNALS, {}))); // key -> 'gold'|'silver'
+
+function defaultRowData() {
+  return { rank: '', app_status: '', interview_date: '', salary: '', union: '', letters_required: '', nyitcom_matched: '', custom: {} };
+}
+function getData(p) {
+  const d = rowDataStore[signalKey(p)];
+  if (!d) return defaultRowData();
+  if (!d.custom) d.custom = {};
+  return d;
+}
+function getDataMutable(key) {
+  if (!rowDataStore[key]) rowDataStore[key] = defaultRowData();
+  if (!rowDataStore[key].custom) rowDataStore[key].custom = {};
+  return rowDataStore[key];
+}
+
+const saveStatusEl = document.getElementById('saveStatus');
+function markSaved() {
+  const now = new Date();
+  saveStatusEl.textContent = `Saved to this browser at ${now.toLocaleTimeString()}`;
+}
+function saveRowData() { saveJSON(LS_ROWDATA, rowDataStore); markSaved(); scheduleSync(); }
+function saveCustomColumns() { saveJSON(LS_CUSTOM_COLS, customColumns); markSaved(); scheduleSync(); }
+function saveColumnVisibility() { saveJSON(LS_COL_VIS, columnVisibility); markSaved(); scheduleSync(); }
+function saveColumnOrder() { saveJSON(LS_COL_ORDER, columnOrder); markSaved(); scheduleSync(); }
+function saveSignalSelections() { saveJSON(LS_SIGNALS, Object.fromEntries(signalSelections)); markSaved(); scheduleSync(); }
+
+// ----------------------------------------------------------------------
+// Shared sync: bundles the same four stores that Export/Import already
+// use (plus signals) into one JSON blob and keeps it in sync with the
+// Google Sheet via the Apps Script web app, so both of you see the same
+// data. If SHEET_API_URL is blank, this is a no-op and the tracker just
+// behaves as local-only, like before.
+// ----------------------------------------------------------------------
+const syncStatusEl = document.getElementById('syncStatus');
+
+function currentStateBlob() {
+  return {
+    rowData: rowDataStore,
+    customColumns,
+    columnVisibility,
+    columnOrder,
+    signalSelections: Object.fromEntries(signalSelections),
+  };
+}
+function applyStateBlob(state) {
+  if (!state) return;
+  if (state.rowData) rowDataStore = state.rowData;
+  if (state.customColumns) customColumns = state.customColumns;
+  if (state.columnVisibility) columnVisibility = state.columnVisibility;
+  if ('columnOrder' in state) columnOrder = state.columnOrder;
+  if (state.signalSelections) {
+    signalSelections.clear();
+    Object.entries(state.signalSelections).forEach(([k, v]) => signalSelections.set(k, v));
+  }
+  saveJSON(LS_ROWDATA, rowDataStore);
+  saveJSON(LS_CUSTOM_COLS, customColumns);
+  saveJSON(LS_COL_VIS, columnVisibility);
+  saveJSON(LS_COL_ORDER, columnOrder);
+  saveJSON(LS_SIGNALS, state.signalSelections || {});
+}
+function setSyncStatus(text) {
+  if (syncStatusEl) syncStatusEl.textContent = text;
+}
+function scheduleSync() {
+  if (!SHEET_API_URL) return;
+  lastLocalEditAt = Date.now();
+  if (syncPushTimer) clearTimeout(syncPushTimer);
+  syncPushTimer = setTimeout(pushStateToServer, SYNC_DEBOUNCE_MS);
+  setSyncStatus('Unsynced changes…');
+}
+async function pushStateToServer() {
+  if (!SHEET_API_URL) return;
+  syncInFlight = true;
+  setSyncStatus('Syncing…');
+  try {
+    const res = await fetch(SHEET_API_URL, {
+      method: 'POST',
+      // text/plain avoids a CORS preflight against the Apps Script endpoint;
+      // the server parses the body as JSON regardless of this header.
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(currentStateBlob()),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setSyncStatus(`Synced with shared sheet at ${new Date().toLocaleTimeString()}`);
+    } else {
+      setSyncStatus('Sync error — saved to this browser only. Retrying…');
+      console.error('Sync push failed:', data.error);
+    }
+  } catch (err) {
+    setSyncStatus('Offline — saved to this browser only. Retrying…');
+    console.error('Sync push error:', err);
+  } finally {
+    syncInFlight = false;
+  }
+}
+async function pullStateFromServer(isInitialLoad) {
+  if (!SHEET_API_URL) return;
+  // Don't clobber an edit that's about to be pushed, or one that's mid-flight.
+  if (!isInitialLoad && (syncInFlight || Date.now() - lastLocalEditAt < SYNC_DEBOUNCE_MS + 2000)) return;
+  try {
+    const res = await fetch(SHEET_API_URL, { method: 'GET' });
+    const data = await res.json();
+    if (data.ok) {
+      applyStateBlob(data.state);
+      renderColumnsPanel();
+      renderBulkFieldOptions();
+      render();
+      setSyncStatus(`Synced with shared sheet at ${new Date().toLocaleTimeString()}`);
+    } else if (isInitialLoad) {
+      setSyncStatus('Could not load shared sheet — starting from this browser\'s local data.');
+    }
+  } catch (err) {
+    console.error('Sync pull error:', err);
+    if (isInitialLoad) setSyncStatus('Offline — starting from this browser\'s local data.');
+  }
+}
+function initSync() {
+  if (!SHEET_API_URL) { setSyncStatus(''); return; }
+  setSyncStatus('Loading shared sheet…');
+  pullStateFromServer(true);
+  syncPollTimer = setInterval(() => pullStateFromServer(false), SYNC_POLL_MS);
+}
+document.getElementById('syncNowBtn') && document.getElementById('syncNowBtn').addEventListener('click', () => {
+  if (!SHEET_API_URL) { setSyncStatus('Shared sync isn\'t set up yet — see SHEET_API_URL in the code.'); return; }
+  pullStateFromServer(false);
+});
+
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function escAttr(s) { return escHtml(s); }
+
+function doBadge(val, prefix) {
+  return `<span class="do-badge ${val ? prefix + '-yes' : prefix + '-no'}">${val ? 'Yes' : 'No'}</span>`;
+}
+function selectCellHtml(p, colId, options, isCustom) {
+  const data = getData(p);
+  const val = isCustom ? (data.custom[colId] || '') : (data[colId] || '');
+  const opts = options.map(o => `<option value="${escAttr(o)}" ${o === val ? 'selected' : ''}>${escHtml(o)}</option>`).join('');
+  return `<select class="cell-input" data-key="${escAttr(signalKey(p))}" data-colid="${escAttr(colId)}" data-builtin="${isCustom ? 0 : 1}"><option value="">—</option>${opts}</select>`;
+}
+function inputCellHtml(p, colId, type, isCustom, extraAttrs) {
+  const data = getData(p);
+  const val = isCustom ? (data.custom[colId] || '') : (data[colId] || '');
+  return `<input type="${type}" class="cell-input" data-key="${escAttr(signalKey(p))}" data-colid="${escAttr(colId)}" data-builtin="${isCustom ? 0 : 1}" ${extraAttrs || ''} value="${escAttr(val)}">`;
+}
+
+function signalCellHtml(p) {
+  return `<button type="button" class="signal-btn gold ${getSignal(p) === 'gold' ? 'selected' : ''}" data-signal="gold" title="Gold signal">🥇</button>` +
+         `<button type="button" class="signal-btn silver ${getSignal(p) === 'silver' ? 'selected' : ''}" data-signal="silver" title="Silver signal">🥈</button>`;
+}
+
+// Column definitions. Order here is the default left-to-right table order.
+const BUILTIN_COLUMNS = [
+  { id: 'select', label: '', alwaysVisible: true, sortable: false,
+    headCell: () => `<input type="checkbox" id="selectAllRows" title="Select all visible rows">`,
+    cell: (p) => `<input type="checkbox" class="row-select" data-key="${escAttr(signalKey(p))}" ${selectedRows.has(signalKey(p)) ? 'checked' : ''}>` },
+  { id: 'signal', label: 'Signal', sortable: true, cellClass: 'signal-cell', cell: (p) => signalCellHtml(p) },
+  { id: 'rank', label: 'Rank', sortable: true, editable: true, fieldType: 'number', cell: (p) => inputCellHtml(p, 'rank', 'number', false, 'placeholder="—" step="1"') },
+  { id: 'name', label: 'Program Name', sortable: true, cell: (p) => escHtml(p.name) },
+  { id: 'city', label: 'City / State', sortable: true, cell: (p) => `${escHtml(p.city)}, ${escHtml(p.state)}` },
+  { id: 'dist_mi', label: 'Approx. Straight-Line Distance', sortable: true, cell: (p) => `${p.dist_mi} mi` },
+  { id: 'tier', label: 'Tier', sortable: true, cell: (p) => `<span class="tier-badge t${p.tier}">${TIER_LABELS[p.tier]}</span>` },
+  { id: 'accepts_do', label: 'DO Accepted', sortable: true, cell: (p) => doBadge(p.accepts_do, 'do') },
+  { id: 'do_10pct', label: '≥10% DO', sortable: true, cell: (p) => doBadge(p.do_10pct, 'do10') },
+  { id: 'do_20pct', label: '≥20% DO', sortable: true, cell: (p) => doBadge(p.do_20pct, 'do20') },
+  { id: 'do_50pct', label: '≥50% DO', sortable: true, cell: (p) => doBadge(p.do_50pct, 'do50') },
+  { id: 'app_status', label: 'Application Status', sortable: true, editable: true, fieldType: 'select', options: APP_STATUS_OPTIONS, cell: (p) => selectCellHtml(p, 'app_status', APP_STATUS_OPTIONS, false) },
+  { id: 'interview_date', label: 'Interview Date', sortable: true, editable: true, fieldType: 'date', cell: (p) => inputCellHtml(p, 'interview_date', 'date', false) },
+  { id: 'salary', label: 'Salary', sortable: true, editable: true, fieldType: 'number', cell: (p) => inputCellHtml(p, 'salary', 'number', false, 'placeholder="$" min="0" step="1000"') },
+  { id: 'union', label: 'Union', sortable: true, editable: true, fieldType: 'select', options: YES_NO_OPTIONS, cell: (p) => selectCellHtml(p, 'union', YES_NO_OPTIONS, false) },
+  { id: 'letters_required', label: 'Letters Required?', sortable: true, editable: true, fieldType: 'number', cell: (p) => inputCellHtml(p, 'letters_required', 'number', false, 'placeholder="#" min="0" step="1"') },
+  { id: 'nyitcom_matched', label: 'NYITCOM Previously Matched', sortable: true, editable: true, fieldType: 'select', options: YES_NO_OPTIONS, cell: (p) => selectCellHtml(p, 'nyitcom_matched', YES_NO_OPTIONS, false) },
+];
+
+function customColumnDefs() {
+  return customColumns.map(cc => ({
+    id: cc.id, label: cc.label, sortable: true, editable: true, custom: true, fieldType: cc.type,
+    options: cc.type === 'yesno' ? YES_NO_OPTIONS : undefined,
+    cell: (p) => {
+      if (cc.type === 'yesno') return selectCellHtml(p, cc.id, YES_NO_OPTIONS, true);
+      if (cc.type === 'date') return inputCellHtml(p, cc.id, 'date', true);
+      if (cc.type === 'number') return inputCellHtml(p, cc.id, 'number', true);
+      return inputCellHtml(p, cc.id, 'text', true);
+    }
+  }));
+}
+// The 'select' checkbox column always stays pinned first and is never reorderable.
+// All other columns (built-in and custom) follow the saved columnOrder. Any column
+// not yet present in a saved order (e.g. a custom column created after the last
+// reorder) is appended at the end, so nothing ever silently disappears.
+function allColumns() {
+  const base = BUILTIN_COLUMNS.concat(customColumnDefs());
+  const selectCol = base.find(c => c.id === 'select');
+  const rest = base.filter(c => c.id !== 'select');
+  const order = (columnOrder && columnOrder.length) ? columnOrder : rest.map(c => c.id);
+  const byId = new Map(rest.map(c => [c.id, c]));
+  const ordered = [];
+  order.forEach(id => {
+    if (byId.has(id)) { ordered.push(byId.get(id)); byId.delete(id); }
+  });
+  byId.forEach(c => ordered.push(c));
+  return selectCol ? [selectCol, ...ordered] : ordered;
+}
+function visibleColumns() { return allColumns().filter(c => c.alwaysVisible || columnVisibility[c.id] !== false); }
+function editableColumns() { return allColumns().filter(c => c.editable); }
+function moveColumn(id, direction) {
+  const ids = allColumns().filter(c => c.id !== 'select').map(c => c.id);
+  const idx = ids.indexOf(id);
+  const swapWith = idx + direction;
+  if (idx === -1 || swapWith < 0 || swapWith >= ids.length) return;
+  [ids[idx], ids[swapWith]] = [ids[swapWith], ids[idx]];
+  columnOrder = ids;
+  saveColumnOrder();
+  render();
+  renderColumnsPanel();
+}
+
+function getSortValue(colId, p) {
+  if (colId === 'signal') return getSignal(p);
+  const custom = customColumns.find(cc => cc.id === colId);
+  const data = getData(p);
+  let raw;
+  if (custom) raw = data.custom[colId];
+  else if (['rank', 'app_status', 'interview_date', 'salary', 'union', 'letters_required', 'nyitcom_matched'].includes(colId)) raw = data[colId];
+  else raw = p[colId];
+  if (raw === undefined || raw === null || raw === '') return (custom ? custom.type : (BUILTIN_COLUMNS.find(c => c.id === colId) || {}).fieldType) === 'number' ? -Infinity : '';
+  const fieldType = custom ? custom.type : (BUILTIN_COLUMNS.find(c => c.id === colId) || {}).fieldType;
+  if (fieldType === 'number') return parseFloat(raw) || 0;
+  return raw;
+}
+
+// --- Row selection for bulk edit ---
+const selectedRows = new Set();
+function updateBulkBar() {
+  const bulkBar = document.getElementById('bulkBar');
+  const bulkCount = document.getElementById('bulkCount');
+  if (selectedRows.size === 0) { bulkBar.style.display = 'none'; return; }
+  bulkBar.style.display = 'flex';
+  bulkCount.textContent = `${selectedRows.size} selected`;
+}
+function renderBulkFieldOptions() {
+  const bulkField = document.getElementById('bulkField');
+  const cols = editableColumns();
+  bulkField.innerHTML = cols.map(c => `<option value="${escAttr(c.id)}">${escHtml(c.label)}</option>`).join('');
+  renderBulkValueInput();
+}
+function renderBulkValueInput() {
+  const bulkField = document.getElementById('bulkField');
+  const container = document.getElementById('bulkValueContainer');
+  const colId = bulkField.value;
+  const col = editableColumns().find(c => c.id === colId);
+  if (!col) { container.innerHTML = ''; return; }
+  if (col.fieldType === 'select') {
+    container.innerHTML = `<select id="bulkValue"><option value="">—</option>${col.options.map(o => `<option value="${escAttr(o)}">${escHtml(o)}</option>`).join('')}</select>`;
+  } else if (col.fieldType === 'date') {
+    container.innerHTML = `<input type="date" id="bulkValue">`;
+  } else if (col.fieldType === 'number') {
+    container.innerHTML = `<input type="number" id="bulkValue" placeholder="value">`;
+  } else {
+    container.innerHTML = `<input type="text" id="bulkValue" placeholder="value">`;
+  }
+}
+
+function popupHtml(p) {
+  const signal = getSignal(p);
+  const data = getData(p);
+  const signalLine = signal ? `<br><b>${signal === 'gold' ? 'Gold' : 'Silver'} Signal selected</b>` : '';
+  const trackingLines = [
+    data.rank ? `Rank: ${escHtml(data.rank)}` : '',
+    data.app_status ? `Application status: ${escHtml(data.app_status)}` : '',
+    data.interview_date ? `Interview date: ${escHtml(data.interview_date)}` : '',
+    data.salary ? `Salary: $${escHtml(data.salary)}` : '',
+  ].filter(Boolean).join('<br>');
+  return `<b>${p.name}</b><br>${p.city}, ${p.state}<br>~${p.dist_mi} mi straight-line &middot; ${TIER_LABELS[p.tier]}<br>DO applicants accepted: ${p.accepts_do ? "Yes" : "No"}<br>≥10% DO applicants: ${p.do_10pct ? "Yes" : "No"}<br>≥20% DO applicants: ${p.do_20pct ? "Yes" : "No"}<br>≥50% DO applicants: ${p.do_50pct ? "Yes" : "No"}${signalLine}${trackingLines ? `<br>${trackingLines}` : ''}${p.mapped_address ? `<br><span style="font-size:11px">Mapped address: ${p.mapped_address}</span>` : ""}`;
+}
+function selectedPrograms(signalType) {
+  return PROGRAMS.filter(p => getSignal(p) === signalType).map(p => p.name);
+}
+function signalLimitPopup(signalType) {
+  const label = signalType === 'gold' ? 'Gold' : 'Silver';
+  const programs = selectedPrograms(signalType);
+  alert(`Too many ${label} Signals selected. Current ${label} Programs: ${programs.join(', ') || 'None'}.`);
+}
+
+const SIGNAL_EMOJI = { gold: '🥇', silver: '🥈' };
+
+// Builds the right kind of Leaflet layer for a program: a small colored dot
+// (circleMarker) when it has no signal, or a marker showing the medal emoji
+// as its icon when a Gold/Silver signal is selected.
+function createProgramMarker(p) {
+  const signal = getSignal(p);
+  if (signal) {
+    return L.marker([p.lat, p.lon], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div class="signal-marker-icon">${SIGNAL_EMOJI[signal]}</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      })
+    });
+  }
+  const color = TIER_COLORS[p.tier];
+  return L.circleMarker([p.lat, p.lon], {
+    radius: 5,
+    color: color,
+    fillColor: color,
+    fillOpacity: 0.85,
+    weight: 1
+  });
+}
+
+// Applies visibility (filter dimming) to a marker regardless of whether it's
+// a circleMarker (path, uses setStyle) or an icon marker (uses setOpacity).
+function setMarkerVisibility(marker, visible) {
+  if (marker.setStyle) {
+    marker.setStyle({opacity: visible ? 1 : 0.1, fillOpacity: visible ? 0.85 : 0.06});
+  } else if (marker.setOpacity) {
+    marker.setOpacity(visible ? 1 : 0.15);
+  }
+}
+
+// Applies/removes the "focused" pulse look to a marker regardless of type.
+function setMarkerFocus(marker, focused) {
+  if (marker.setStyle) {
+    marker.setStyle(focused ? {radius: 10, weight: 3} : {radius: 5, weight: 1});
+  } else if (marker.getElement) {
+    const el = marker.getElement();
+    if (el) {
+      const inner = el.querySelector('.signal-marker-icon');
+      if (inner) inner.style.transform = focused ? 'scale(1.4)' : 'scale(1)';
+    }
+  }
+}
+
+function updateSignalMarkers() {
+  markers.forEach(entry => {
+    const p = entry.data;
+    const signal = getSignal(p);
+
+    // If the signal state changed in a way that requires switching between a
+    // colored-dot circleMarker and an icon marker (or between gold <-> silver
+    // icons), swap out the underlying Leaflet layer for the right one.
+    if (signal !== entry.signal) {
+      const wasFocused = lastFocusedMarker === entry.marker;
+      map.removeLayer(entry.marker);
+
+      const newMarker = createProgramMarker(p);
+      newMarker.addTo(map);
+      newMarker.bindPopup(popupHtml(p));
+
+      entry.marker = newMarker;
+      entry.signal = signal;
+      markerByKey.set(signalKey(p), newMarker);
+
+      if (wasFocused) {
+        lastFocusedMarker = newMarker;
+        setMarkerFocus(newMarker, true);
+      }
+    } else {
+      entry.marker.setPopupContent(popupHtml(p));
+      if (!signal && entry.marker.setStyle) {
+        const color = TIER_COLORS[p.tier];
+        entry.marker.setStyle({color, fillColor: color});
+      }
+    }
+  });
+}
+function getSignal(p) { return signalSelections.get(signalKey(p)) || ''; }
+function signalCounts() {
+  let gold = 0, silver = 0;
+  signalSelections.forEach(v => { if (v === 'gold') gold++; if (v === 'silver') silver++; });
+  return {gold, silver};
+}
+
+function currentFilteredRows() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const tf = document.getElementById('tierFilter').value;
+  const sf = document.getElementById('signalFilter').value;
+  const doOnly = document.getElementById('doFilter').checked;
+  const do10Only = document.getElementById('do10Filter').checked;
+  const do20Only = document.getElementById('do20Filter').checked;
+  const do50Only = document.getElementById('do50Filter').checked;
+  return PROGRAMS.filter(p => {
+    const matchesQ = !q || p.name.toLowerCase().includes(q) || p.city.toLowerCase().includes(q) || p.state.toLowerCase().includes(q);
+    const matchesT = tf === 'all' || String(p.tier) === tf;
+    const matchesSignal = sf === 'all' || getSignal(p) === sf;
+    const matchesDO = !doOnly || p.accepts_do;
+    const matchesDO10 = !do10Only || p.do_10pct;
+    const matchesDO20 = !do20Only || p.do_20pct;
+    const matchesDO50 = !do50Only || p.do_50pct;
+    return matchesQ && matchesT && matchesSignal && matchesDO && matchesDO10 && matchesDO20 && matchesDO50 && passesColumnFilters(p);
+  });
+}
+
+// --- Column filters (Application Status, Salary, Union, custom columns, etc.) ---
+// Keyed by column id. Shape depends on the column's field type:
+//   select -> { value: 'Applied' }
+//   number -> { min: '10', max: '' }
+//   date   -> { from: '2026-01-01', to: '' }
+//   text   -> { contains: 'notes text' }
+const columnFilters = {};
+
+function getFieldValueRaw(colId, p) {
+  const custom = customColumns.find(cc => cc.id === colId);
+  const data = getData(p);
+  return (custom ? data.custom[colId] : data[colId]) || '';
+}
+function activeFilterCount() {
+  return Object.keys(columnFilters).filter(id => {
+    const f = columnFilters[id];
+    return f && (f.value || f.min || f.max || f.from || f.to || f.contains);
+  }).length;
+}
+function passesColumnFilters(p) {
+  for (const col of editableColumns()) {
+    const filter = columnFilters[col.id];
+    if (!filter) continue;
+    const raw = getFieldValueRaw(col.id, p);
+    if (col.fieldType === 'select') {
+      if (filter.value && raw !== filter.value) return false;
+    } else if (col.fieldType === 'number') {
+      const num = raw === '' ? null : parseFloat(raw);
+      if (filter.min !== undefined && filter.min !== '' && (num === null || num < parseFloat(filter.min))) return false;
+      if (filter.max !== undefined && filter.max !== '' && (num === null || num > parseFloat(filter.max))) return false;
+    } else if (col.fieldType === 'date') {
+      if (filter.from && (!raw || raw < filter.from)) return false;
+      if (filter.to && (!raw || raw > filter.to)) return false;
+    } else {
+      if (filter.contains && !raw.toLowerCase().includes(filter.contains.toLowerCase())) return false;
+    }
+  }
+  return true;
+}
+function updateFiltersButtonLabel() {
+  const n = activeFilterCount();
+  document.getElementById('filtersBtn').textContent = n ? `Filters (${n}) ▾` : 'Filters ▾';
+}
+function renderFiltersPanel() {
+  const panel = document.getElementById('filtersPanel');
+  const cols = editableColumns();
+  if (!cols.length) { panel.innerHTML = `<div class="filter-empty-note">No filterable columns yet.</div>`; return; }
+  panel.innerHTML = cols.map(c => {
+    const f = columnFilters[c.id] || {};
+    if (c.fieldType === 'select') {
+      const opts = c.options.map(o => `<option value="${escAttr(o)}" ${f.value === o ? 'selected' : ''}>${escHtml(o)}</option>`).join('');
+      return `<div class="filter-field"><label>${escHtml(c.label)}</label>
+        <select data-filter-col="${escAttr(c.id)}" data-filter-kind="value"><option value="">All</option>${opts}</select></div>`;
+    }
+    if (c.fieldType === 'number') {
+      return `<div class="filter-field"><label>${escHtml(c.label)}</label>
+        <div class="filter-range">
+          <input type="number" placeholder="Min" data-filter-col="${escAttr(c.id)}" data-filter-kind="min" value="${escAttr(f.min || '')}">
+          <input type="number" placeholder="Max" data-filter-col="${escAttr(c.id)}" data-filter-kind="max" value="${escAttr(f.max || '')}">
+        </div></div>`;
+    }
+    if (c.fieldType === 'date') {
+      return `<div class="filter-field"><label>${escHtml(c.label)}</label>
+        <div class="filter-range">
+          <input type="date" data-filter-col="${escAttr(c.id)}" data-filter-kind="from" value="${escAttr(f.from || '')}">
+          <input type="date" data-filter-col="${escAttr(c.id)}" data-filter-kind="to" value="${escAttr(f.to || '')}">
+        </div></div>`;
+    }
+    return `<div class="filter-field"><label>${escHtml(c.label)}</label>
+      <input type="text" placeholder="Contains..." data-filter-col="${escAttr(c.id)}" data-filter-kind="contains" value="${escAttr(f.contains || '')}"></div>`;
+  }).join('') + `<div class="col-manage-actions"><button type="button" class="btn" id="clearFiltersBtn">Clear filters</button></div>`;
+}
+document.getElementById('filtersBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  renderFiltersPanel();
+  toggleMenu('filtersPanel', ['columnsPanel', 'addColumnPanel']);
+});
+document.getElementById('filtersPanel').addEventListener('input', (e) => {
+  const el = e.target;
+  if (!el.dataset.filterCol) return;
+  const colId = el.dataset.filterCol;
+  const kind = el.dataset.filterKind;
+  columnFilters[colId] = columnFilters[colId] || {};
+  columnFilters[colId][kind] = el.value;
+  updateFiltersButtonLabel();
+  render();
+});
+document.getElementById('filtersPanel').addEventListener('click', (e) => {
+  if (e.target.id === 'clearFiltersBtn') {
+    Object.keys(columnFilters).forEach(k => delete columnFilters[k]);
+    updateFiltersButtonLabel();
+    renderFiltersPanel();
+    render();
+  }
+});
+
+function renderSummary(rows) {
+  const counts = {1:0,2:0,3:0,4:0};
+  rows.forEach(p => counts[p.tier]++);
+  summaryCards.innerHTML = [1,2,3,4].map(t => `
+    <div class="summary-card" style="background:${TIER_COLORS[t]}">
+      <div class="n">${counts[t]}</div>
+      <div class="lbl">${TIER_LABELS[t]}</div>
+    </div>
+  `).join('');
+}
+
+function renderHeader() {
+  const theadRow = document.getElementById('theadRow');
+  const cols = visibleColumns();
+  theadRow.innerHTML = cols.map(c => {
+    if (c.id === 'select') return `<th class="col-select">${c.headCell()}</th>`;
+    const indicator = c.sortable && sortKey === c.id ? (sortAsc ? ' ▲' : ' ▼') : '';
+    return `<th ${c.sortable ? `data-key="${escAttr(c.id)}"` : ''}>${escHtml(c.label)}${indicator}</th>`;
+  }).join('');
+}
+
+function render() {
+  let rows = currentFilteredRows();
+  rows.sort((a,b) => {
+    let av = getSortValue(sortKey, a);
+    let bv = getSortValue(sortKey, b);
+    // Blank tracked values (no rank/status/date/etc. entered yet) always sort
+    // to the bottom, regardless of sort direction, rather than flip-flopping
+    // to the top on descending sorts.
+    const aEmpty = av === '' || av === -Infinity;
+    const bEmpty = bv === '' || bv === -Infinity;
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return 1;
+    if (bEmpty) return -1;
+    if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+    if (typeof av === 'boolean') { av = av ? 1 : 0; bv = bv ? 1 : 0; }
+    if (av < bv) return sortAsc ? -1 : 1;
+    if (av > bv) return sortAsc ? 1 : -1;
+    return 0;
+  });
+
+  renderHeader();
+  const cols = visibleColumns();
+  tbody.innerHTML = rows.map(p => `
+    <tr class="prog-row" data-name="${p.name.replace(/"/g, '&quot;')}" data-city="${p.city}" title="Click to locate on map">
+      ${cols.map(c => `<td${c.id === 'select' ? ' class="col-select"' : (c.cellClass ? ` class="${c.cellClass}"` : '')}>${c.cell(p)}</td>`).join('')}
+    </tr>
+  `).join('');
+  const sc = signalCounts();
+  countRow.textContent = `Showing ${rows.length} of ${PROGRAMS.length} programs · Gold ${sc.gold}/${MAX_GOLD} · Silver ${sc.silver}/${MAX_SILVER}`;
+
+  renderSummary(rows);
+
+  updateSignalMarkers();
+
+  // Highlight map markers matching filter
+  const visibleNames = new Set(rows.map(r => r.name + '|' + r.city));
+  markers.forEach(({marker, data}) => {
+    const visible = visibleNames.has(data.name + '|' + data.city);
+    setMarkerVisibility(marker, visible);
+  });
+
+  updateBulkBar();
+}
+
+// Event delegation: clicking any row locates that program on the map.
+// Clicks that land on an input/select/checkbox are left alone so editing
+// and selecting a row doesn't also fly the map to that program.
+tbody.addEventListener('click', (e) => {
+  if (e.target.closest('input, select')) return;
+  const button = e.target.closest('.signal-btn');
+  const row = e.target.closest('.prog-row');
+  if (!row) return;
+
+  if (button) {
+    e.stopPropagation();
+    const name = row.getAttribute('data-name');
+    const city = row.getAttribute('data-city');
+    const p = PROGRAMS.find(x => x.name === name && x.city === city);
+    if (!p) return;
+    const next = button.getAttribute('data-signal');
+    const key = signalKey(p);
+    const current = getSignal(p);
+
+    // Clicking the selected badge clears it.
+    if (current === next) {
+      signalSelections.delete(key);
+    } else {
+      const counts = signalCounts();
+      if (next === 'gold' && current !== 'gold' && counts.gold >= MAX_GOLD) {
+        signalLimitPopup('gold');
+        return;
+      }
+      if (next === 'silver' && current !== 'silver' && counts.silver >= MAX_SILVER) {
+        signalLimitPopup('silver');
+        return;
+      }
+      signalSelections.set(key, next);
+    }
+    saveSignalSelections();
+    render();
+    return;
+  }
+
+  focusProgram(row.getAttribute('data-name'), row.getAttribute('data-city'));
+});
+
+// Editable cells (built-in and custom columns) + row-select checkboxes.
+tbody.addEventListener('change', (e) => {
+  const el = e.target;
+  if (el.classList.contains('row-select')) {
+    const key = el.dataset.key;
+    if (el.checked) selectedRows.add(key); else selectedRows.delete(key);
+    updateBulkBar();
+    return;
+  }
+  if (el.dataset && el.dataset.colid) {
+    const key = el.dataset.key;
+    const colId = el.dataset.colid;
+    const isBuiltin = el.dataset.builtin === '1';
+    const entry = getDataMutable(key);
+    if (isBuiltin) entry[colId] = el.value; else entry.custom[colId] = el.value;
+    saveRowData();
+    if (sortKey === colId) render();
+  }
+});
+
+// Header clicks (sorting) + "select all visible" checkbox — delegated since
+// the header row is rebuilt on every render() call.
+document.getElementById('theadRow').addEventListener('click', (e) => {
+  const th = e.target.closest('th[data-key]');
+  if (!th) return;
+  const key = th.getAttribute('data-key');
+  if (sortKey === key) sortAsc = !sortAsc; else { sortKey = key; sortAsc = true; }
+  render();
+});
+document.getElementById('theadRow').addEventListener('change', (e) => {
+  if (e.target.id !== 'selectAllRows') return;
+  const rows = currentFilteredRows();
+  if (e.target.checked) rows.forEach(p => selectedRows.add(signalKey(p)));
+  else rows.forEach(p => selectedRows.delete(signalKey(p)));
+  render();
+});
+
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('signalFilter').addEventListener('change', render);
+document.getElementById('tierFilter').addEventListener('change', render);
+document.getElementById('doFilter').addEventListener('change', render);
+document.getElementById('do10Filter').addEventListener('change', render);
+document.getElementById('do20Filter').addEventListener('change', render);
+document.getElementById('do50Filter').addEventListener('change', render);
+
+// --- Columns show/hide panel ---
+function renderColumnsPanel() {
+  const panel = document.getElementById('columnsPanel');
+  const toggleable = allColumns().filter(c => !c.alwaysVisible);
+  panel.innerHTML = toggleable.map((c, i) => `
+    <div class="col-toggle-row">
+      <label class="col-toggle">
+        <input type="checkbox" data-colvis="${escAttr(c.id)}" ${columnVisibility[c.id] !== false ? 'checked' : ''}>
+        ${escHtml(c.label)}
+      </label>
+      <span class="col-reorder">
+        <button type="button" class="col-move-btn" data-move="${escAttr(c.id)}" data-dir="-1" title="Move left" ${i === 0 ? 'disabled' : ''}>◀</button>
+        <button type="button" class="col-move-btn" data-move="${escAttr(c.id)}" data-dir="1" title="Move right" ${i === toggleable.length - 1 ? 'disabled' : ''}>▶</button>
+      </span>
+    </div>
+  `).join('') + `
+    <div class="col-manage-actions">
+      <button type="button" class="btn" id="showAllColsBtn">Show all</button>
+      <button type="button" class="btn" id="resetColOrderBtn">Reset order</button>
+    </div>`;
+}
+function toggleMenu(panelId, otherPanelIds) {
+  const panel = document.getElementById(panelId);
+  const isOpen = panel.classList.contains('open');
+  [panelId, ...otherPanelIds].forEach(id => document.getElementById(id).classList.remove('open'));
+  if (!isOpen) panel.classList.add('open');
+}
+document.getElementById('columnsBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  renderColumnsPanel();
+  toggleMenu('columnsPanel', ['addColumnPanel', 'filtersPanel']);
+});
+document.getElementById('columnsPanel').addEventListener('change', (e) => {
+  if (!e.target.dataset.colvis) return;
+  if (e.target.id === 'showAllColsBtn') return;
+  columnVisibility[e.target.dataset.colvis] = e.target.checked;
+  saveColumnVisibility();
+  render();
+  renderColumnsPanel();
+});
+document.getElementById('columnsPanel').addEventListener('click', (e) => {
+  if (e.target.id === 'showAllColsBtn') {
+    allColumns().forEach(c => { if (!c.alwaysVisible) columnVisibility[c.id] = true; });
+    saveColumnVisibility();
+    render();
+    renderColumnsPanel();
+    return;
+  }
+  if (e.target.id === 'resetColOrderBtn') {
+    columnOrder = null;
+    saveColumnOrder();
+    render();
+    renderColumnsPanel();
+    return;
+  }
+  const moveBtn = e.target.closest('[data-move]');
+  if (moveBtn) {
+    moveColumn(moveBtn.dataset.move, parseInt(moveBtn.dataset.dir, 10));
+  }
+});
+
+// --- Add column panel ---
+document.getElementById('addColumnBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleMenu('addColumnPanel', ['columnsPanel', 'filtersPanel']);
+});
+document.getElementById('cancelColumnBtn').addEventListener('click', () => {
+  document.getElementById('addColumnPanel').classList.remove('open');
+  document.getElementById('newColName').value = '';
+});
+document.getElementById('createColumnBtn').addEventListener('click', () => {
+  const nameInput = document.getElementById('newColName');
+  const typeSelect = document.getElementById('newColType');
+  const label = nameInput.value.trim();
+  if (!label) { nameInput.focus(); return; }
+  const id = 'custom_' + label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') + '_' + Date.now().toString(36);
+  customColumns.push({ id, label, type: typeSelect.value });
+  saveCustomColumns();
+  columnVisibility[id] = true;
+  saveColumnVisibility();
+  nameInput.value = '';
+  document.getElementById('addColumnPanel').classList.remove('open');
+  render();
+});
+
+// Close open menu panels when clicking elsewhere on the page.
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.menu-wrap')) {
+    document.getElementById('columnsPanel').classList.remove('open');
+    document.getElementById('addColumnPanel').classList.remove('open');
+    document.getElementById('filtersPanel').classList.remove('open');
+  }
+});
+
+// --- Bulk edit ---
+renderBulkFieldOptions();
+document.getElementById('bulkField').addEventListener('change', renderBulkValueInput);
+document.getElementById('bulkApplyBtn').addEventListener('click', () => {
+  const colId = document.getElementById('bulkField').value;
+  const valueEl = document.getElementById('bulkValue');
+  if (!colId || !valueEl || selectedRows.size === 0) return;
+  const col = editableColumns().find(c => c.id === colId);
+  const isBuiltin = !col.custom;
+  selectedRows.forEach(key => {
+    const entry = getDataMutable(key);
+    if (isBuiltin) entry[colId] = valueEl.value; else entry.custom[colId] = valueEl.value;
+  });
+  saveRowData();
+  render();
+});
+document.getElementById('bulkClearBtn').addEventListener('click', () => {
+  selectedRows.clear();
+  render();
+});
+
+// --- Export / import (backup or move data between browsers/hosts) ---
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const payload = { rowData: rowDataStore, customColumns, columnVisibility, columnOrder, signalSelections: Object.fromEntries(signalSelections), exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'obgyn-application-tracker-data.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importFile').click();
+});
+document.getElementById('importFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const payload = JSON.parse(reader.result);
+      if (payload.rowData) rowDataStore = payload.rowData;
+      if (payload.customColumns) customColumns = payload.customColumns;
+      if (payload.columnVisibility) columnVisibility = payload.columnVisibility;
+      if (payload.columnOrder) columnOrder = payload.columnOrder;
+      if (payload.signalSelections) {
+        signalSelections.clear();
+        Object.entries(payload.signalSelections).forEach(([k, v]) => signalSelections.set(k, v));
+      }
+      saveRowData();
+      saveCustomColumns();
+      saveColumnVisibility();
+      saveColumnOrder();
+      saveSignalSelections();
+      renderBulkFieldOptions();
+      render();
+      alert('Import complete.');
+    } catch (err) {
+      alert('That file could not be read as tracker data. Make sure it is a JSON file exported from this tool.');
+      console.error(err);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+if (Object.keys(rowDataStore).length || customColumns.length) markSaved();
+render();
+initSync();</script>
+<script>
+try {
+  const ORIGIN = [40.8556, -73.1147];
+  const MILE_M = 1609.34;
+  map = L.map('map').setView(ORIGIN, 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 18
+  }).addTo(map);
+
+  // Origin marker
+  L.marker(ORIGIN, {
+    icon: L.divIcon({
+      className: '',
+      html: '<div style="background:#2563eb;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 0 2px #2563eb44;"></div>',
+      iconSize: [14,14]
+    })
+  }).addTo(map).bindPopup("<b>Origin</b><br>7 Virginia Road, Lake Grove, NY 11755");
+
+  // Rings
+  L.circle(ORIGIN, {radius: 95*MILE_M, color:"#1a7f37", weight:2, fill:false, dashArray:"4 4"}).addTo(map);
+  L.circle(ORIGIN, {radius: 235*MILE_M, color:"#c8720a", weight:2, fill:false, dashArray:"4 4"}).addTo(map);
+  L.circle(ORIGIN, {radius: 620*MILE_M, color:"#b23b3b", weight:2, fill:false, dashArray:"4 4"}).addTo(map);
+
+  PROGRAMS.forEach(p => {
+    const m = createProgramMarker(p).addTo(map);
+    m.bindPopup(popupHtml(p));
+    markers.push({marker:m, data:p, signal:getSignal(p)});
+    markerByKey.set(p.name + '|' + p.city, m);
+  });
+
+  // Programs sharing a City/State are refined to an address-level location.
+  // Results are cached in this browser so subsequent opens do not repeat the lookup.
+  const EXACT_COORDINATES = {"Montefiore Medical Center/Albert Einstein College of Medicine Program": [40.88, -73.8797], "BronxCare Health System Program": [40.84351, -73.91066], "Lincoln Medical and Mental Health Center Program": [40.817688, -73.9242], "NYU Grossman School of Medicine Program": [40.7421, -73.9754], "Icahn School of Medicine at Mount Sinai/Mount Sinai Hospital Program": [40.79003, -73.95317], "Icahn School of Medicine at Mount Sinai/West Program": [40.76966, -73.98709], "New York Presbyterian Hospital (Cornell Campus) Program": [40.7647, -73.954], "New York Presbyterian Hospital (Columbia Campus) Program": [40.83975, -73.94145], "Zucker School of Medicine at Hofstra/Northwell at Lenox Hill Hospital Program": [40.7732, -73.9607], "Maimonides Medical Center Program": [40.6399, -73.9996], "SUNY Downstate Health Sciences University Program": [40.6558, -73.9456], "New York-Presbyterian Brooklyn Methodist Hospital Program": [40.66783, -73.97914], "Brooklyn Hospital Center Program": [40.69055, -73.97792], "NYC Health & Hospitals/South Brooklyn Health Program": [40.58612, -73.96482], "Wyckoff Heights Medical Center Program": [40.7056, -73.9148]};
+  const EXACT_PROGRAM_ADDRESSES = {"Montefiore Medical Center / Albert Einstein College of Medicine Program": "111 E 210th St, Bronx, NY 10467", "BronxCare Health System Program": "1650 Grand Concourse, Bronx, NY 10457", "Lincoln Medical and Mental Health Center Program": "234 E 149th St, Bronx, NY 10451", "NYU Grossman School of Medicine Program": "550 1st Ave, New York, NY 10016", "Icahn School of Medicine at Mount Sinai/Mount Sinai Hospital Program": "1468 Madison Ave, New York, NY 10029", "Icahn School of Medicine at Mount Sinai/West Program": "1000 10th Ave, New York, NY 10019", "New York Presbyterian Hospital (Cornell Campus) Program": "525 E 68th St, New York, NY 10065", "New York Presbyterian Hospital (Columbia Campus) Program": "630 W 168th St, New York, NY 10032", "Zucker School of Medicine at Hofstra/Northwell at Lenox Hill Hospital Program": "100 E 77th St, New York, NY 10075", "Zucker School of Medicine at Hofstra/Northwell at Staten Island University Hospital Program": "475 Seaview Ave, Staten Island, NY 10305", "Richmond University Medical Center Program": "355 Bard Ave, Staten Island, NY 10310", "Rutgers Health/Cooperman Barnabas Medical Center Program": "94 Old Short Hills Rd, Livingston, NJ 07039", "Rutgers Health/Jersey City Medical Center Program": "355 Grand St, Jersey City, NJ 07302", "Saint Peter's University Hospital/Rutgers Robert Wood Johnson Medical School Program": "254 Easton Ave, New Brunswick, NJ 08901", "Rutgers Health/Robert Wood Johnson Medical School Program": "1 Robert Wood Johnson Pl, New Brunswick, NJ 08901", "Sidney Kimmel Medical College at Thomas Jefferson University/TJUH Program": "111 S 11th St, Philadelphia, PA 19107", "University of Pennsylvania Health System Program": "3400 Spruce St, Philadelphia, PA 19104", "University of Pennsylvania Health System/Pennsylvania Hospital Program": "800 Spruce St, Philadelphia, PA 19107", "Temple University Hospital Program": "3401 N Broad St, Philadelphia, PA 19140", "Jefferson Health Medical Education/Jefferson Einstein Philadelphia Hospital Program": "5501 Old York Rd, Philadelphia, PA 19141", "Mass General Brigham/Brigham and Women's Hospital/Massachusetts General Hospital Program": "55 Fruit St, Boston, MA 02114", "Beth Israel Deaconess Medical Center Program": "330 Brookline Ave, Boston, MA 02215", "Tufts Medical Center Program": "800 Washington St, Boston, MA 02111", "Boston University Medical Center Program": "1 Boston Medical Center Pl, Boston, MA 02118", "Johns Hopkins University Program": "1800 Orleans St, Baltimore, MD 21287", "University of Maryland Program": "22 S Greene St, Baltimore, MD 21201", "Sinai Hospital of Baltimore Program": "2401 W Belvedere Ave, Baltimore, MD 21215", "MedStar Health Georgetown University/Washington Hospital Center Program": "110 Irving St NW, Washington, DC 20010", "George Washington University Program": "900 23rd St NW, Washington, DC 20037", "Howard University Program": "2041 Georgia Ave NW, Washington, DC 20060", "University of Rochester Medical Center Program": "601 Elmwood Ave, Rochester, NY 14642", "Rochester Regional Health Program": "1425 Portland Ave, Rochester, NY 14621", "University at Buffalo Program": "100 High St, Buffalo, NY 14203", "University at Buffalo (Sisters of Charity) Program": "2157 Main St, Buffalo, NY 14214"};
+  const DUPLICATE_CITY_PROGRAM_KEYS = ["Rutgers Health/Cooperman Barnabas Medical Center Program|Livingston", "Rutgers Health/Jersey City Medical Center Program|Livingston", "Mass General Brigham/Brigham and Women's Hospital/Massachusetts General Hospital Program|Boston", "Beth Israel Deaconess Medical Center Program|Boston", "Tufts Medical Center Program|Boston", "Boston University Medical Center Program|Boston", "Montefiore Medical Center/Albert Einstein College of Medicine Program|Bronx", "BronxCare Health System Program|Bronx", "Lincoln Medical and Mental Health Center Program|Bronx", "Ohio State University/Mount Carmel Hospital Program|Columbus", "OhioHealth/Doctors Hospital Program|Columbus", "OhioHealth/Riverside Methodist Hospital Program|Columbus", "Indiana University School of Medicine Program|Indianapolis", "Ascension St Vincent Hospital Indianapolis Program|Indianapolis", "Detroit Medical Center/Wayne State University Program|Detroit", "Henry Ford Health/Henry Ford Hospital Program|Detroit", "Henry Ford St John Hospital Program|Detroit", "NYU Grossman School of Medicine Program|New York", "Icahn School of Medicine at Mount Sinai/Mount Sinai Hospital Program|New York", "Icahn School of Medicine at Mount Sinai/West Program|New York", "New York Presbyterian Hospital (Cornell Campus) Program|New York", "New York Presbyterian Hospital (Columbia Campus) Program|New York", "Zucker School of Medicine at Hofstra/Northwell at Lenox Hill Hospital Program|New York", "UPMC Medical Education Program|Pittsburgh", "Allegheny Health Network Medical Education Consortium (WPH) Program|Pittsburgh", "MedStar Health Georgetown University/Washington Hospital Center Program|Washington", "George Washington University Program|Washington", "Howard University Program|Washington", "Johns Hopkins University Program|Baltimore", "University of Maryland Program|Baltimore", "Sinai Hospital of Baltimore Program|Baltimore", "University at Buffalo Program|Buffalo", "University at Buffalo (Sisters of Charity) Program|Buffalo", "Sidney Kimmel Medical College at Thomas Jefferson University/TJUH Program|Philadelphia", "University of Pennsylvania Health System Program|Philadelphia", "University of Pennsylvania Health System/Pennsylvania Hospital Program|Philadelphia", "Temple University Hospital Program|Philadelphia", "Jefferson Health Medical Education/Jefferson Einstein Philadelphia Hospital Program|Philadelphia", "University of Rochester Medical Center Program|Rochester", "Rochester Regional Health Program|Rochester", "TriHealth (Bethesda North and Good Samaritan Hospitals) Program|Cincinnati", "University of Cincinnati Medical Center/College of Medicine Program|Cincinnati", "Cleveland Clinic Foundation Program|Cleveland", "Case Western Reserve University/University Hospitals Cleveland Medical Center Program|Cleveland", "The MetroHealth System/Case Western Reserve University Program|Cleveland", "Maimonides Medical Center Program|Brooklyn", "SUNY Downstate Health Sciences University Program|Brooklyn", "New York-Presbyterian Brooklyn Methodist Hospital Program|Brooklyn", "Brooklyn Hospital Center Program|Brooklyn", "NYC Health & Hospitals/South Brooklyn Health Program|Brooklyn", "Wyckoff Heights Medical Center Program|Brooklyn", "Summa Health System/NEOMED Program|Akron", "Cleveland Clinic Foundation/Akron General Program|Akron", "Florida State University College of Medicine Program|Pensacola", "University of Central Florida/HCA Florida Healthcare (Pensacola) Program|Pensacola", "Wright State University Program|Dayton", "Kettering Health Network Program|Dayton", "Saint Peter's University Hospital/Rutgers Robert Wood Johnson Medical School Program|New Brunswick", "Rutgers Health/Robert Wood Johnson Medical School Program|New Brunswick", "University of Toledo Program|Toledo", "Mercy St Vincent Medical Center Program|Toledo", "Mount Sinai Hospital Medical Center of Chicago Program|Chicago", "Advocate Health Care/Advocate Illinois Masonic Medical Center Program|Chicago", "University of Michigan Health - Sparrow/Michigan State University Program|Lansing", "McLaren Health Care/Greater Lansing/MSU Program|Lansing", "Zucker School of Medicine at Hofstra/Northwell at Staten Island University Hospital Program|Staten Island", "Richmond University Medical Center Program|Staten Island"];
+  const duplicateProgramSet = new Set(DUPLICATE_CITY_PROGRAM_KEYS);
+  const geocodeStatus = document.getElementById('geocodeStatus');
+
+  function addressQuery(p) {
+    const simplified = p.name.replace(/Program$/i, '').replace(/\/.*$/, '').replace(/\([^)]*\)/g, '').trim();
+    return `${simplified}, ${p.city}, ${p.state}, USA`;
+  }
+  function applyExactLocation(p, lat, lon, displayName) {
+    const marker = markerByKey.get(p.name + '|' + p.city);
+    if (!marker || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    marker.setLatLng([lat, lon]);
+    p.lat = lat; p.lon = lon;
+    p.mapped_address = displayName || p.mapped_address || '';
+  }
+  function refineDuplicateLocations() {
+    let updated = 0;
+    PROGRAMS.forEach(p => {
+      const c = EXACT_COORDINATES[p.name];
+      if (c) {
+        applyExactLocation(p, c[0], c[1], EXACT_PROGRAM_ADDRESSES[p.name] || p.mapped_address || '');
+        updated++;
+      }
+    });
+    geocodeStatus.textContent = `Exact coordinate placement complete (${updated} programs updated).`;
+    render();
+  }
+  refineDuplicateLocations();
+} catch (err) {
+  console.error('Map failed to initialize — the program table above is unaffected.', err);
+  var geocodeStatusEl = document.getElementById('geocodeStatus');
+  if (geocodeStatusEl) geocodeStatusEl.textContent = 'Map failed to load (see browser console). The table below is unaffected.';
+}
+</script>
+</body>
+</html>
