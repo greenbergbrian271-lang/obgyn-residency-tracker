@@ -294,12 +294,13 @@
   input[type=date].cell-input{ min-width:130px; }
   td.col-select, th.col-select{ text-align:center; width:30px; }
   .row-select, #selectAllRows{ cursor:pointer; }
+  .filter-checkbox-row{ display:flex; align-items:center; gap:6px; font-weight:400; margin:2px 0; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>OBGYN Residency Programs — Distance Tiers from 7 Virginia Road, Lake Grove, NY 11755</h1>
+  <h1>OBGYN Residency Programs</h1>
   <p>Rings approximate driving distance from the origin address (see note below on methodology).</p>
   <div class="legend">
     <span><i class="dot" style="background:var(--tier1)"></i>Tier 1 — approx. within 2 hrs</span>
@@ -932,7 +933,9 @@ function currentFilteredRows() {
 
 // --- Column filters (Application Status, Salary, Union, custom columns, etc.) ---
 // Keyed by column id. Shape depends on the column's field type:
-//   select -> { value: 'Applied' }
+//   select -> { value: 'Applied' } for single-select columns, or
+//             { values: ['Applied','Interview Request'] } for the
+//             multi-select Application Status filter specifically
 //   number -> { min: '10', max: '' }
 //   date   -> { from: '2026-01-01', to: '' }
 //   text   -> { contains: 'notes text' }
@@ -946,7 +949,7 @@ function getFieldValueRaw(colId, p) {
 function activeFilterCount() {
   return Object.keys(columnFilters).filter(id => {
     const f = columnFilters[id];
-    return f && (f.value || f.min || f.max || f.from || f.to || f.contains);
+    return f && (f.value || f.min || f.max || f.from || f.to || f.contains || (f.values && f.values.length));
   }).length;
 }
 function passesColumnFilters(p) {
@@ -955,7 +958,12 @@ function passesColumnFilters(p) {
     if (!filter) continue;
     const raw = getFieldValueRaw(col.id, p);
     if (col.fieldType === 'select') {
-      if (filter.value && raw !== filter.value) return false;
+      if (filter.values && filter.values.length) {
+        // Multi-select filter (currently used by Application Status only)
+        if (!filter.values.includes(raw)) return false;
+      } else if (filter.value && raw !== filter.value) {
+        return false;
+      }
     } else if (col.fieldType === 'number') {
       const num = raw === '' ? null : parseFloat(raw);
       if (filter.min !== undefined && filter.min !== '' && (num === null || num < parseFloat(filter.min))) return false;
@@ -980,6 +988,18 @@ function renderFiltersPanel() {
   panel.innerHTML = cols.map(c => {
     const f = columnFilters[c.id] || {};
     if (c.fieldType === 'select') {
+      // Application Status gets a multi-select checkbox list; every other
+      // select-type column (Union, NYITCOM Previously Matched, custom
+      // Yes/No columns) keeps the original single-select dropdown.
+      if (c.id === 'app_status') {
+        const selectedValues = f.values || [];
+        const checks = c.options.map(o => `
+          <label class="filter-checkbox-row">
+            <input type="checkbox" data-filter-col="${escAttr(c.id)}" data-filter-kind="multi" data-filter-value="${escAttr(o)}" ${selectedValues.includes(o) ? 'checked' : ''}>
+            ${escHtml(o)}
+          </label>`).join('');
+        return `<div class="filter-field"><label>${escHtml(c.label)}</label>${checks}</div>`;
+      }
       const opts = c.options.map(o => `<option value="${escAttr(o)}" ${f.value === o ? 'selected' : ''}>${escHtml(o)}</option>`).join('');
       return `<div class="filter-field"><label>${escHtml(c.label)}</label>
         <select data-filter-col="${escAttr(c.id)}" data-filter-kind="value"><option value="">All</option>${opts}</select></div>`;
@@ -1009,11 +1029,28 @@ document.getElementById('filtersBtn').addEventListener('click', (e) => {
 });
 document.getElementById('filtersPanel').addEventListener('input', (e) => {
   const el = e.target;
-  if (!el.dataset.filterCol) return;
+  if (!el.dataset.filterCol || el.dataset.filterKind === 'multi') return;
   const colId = el.dataset.filterCol;
   const kind = el.dataset.filterKind;
   columnFilters[colId] = columnFilters[colId] || {};
   columnFilters[colId][kind] = el.value;
+  updateFiltersButtonLabel();
+  render();
+});
+document.getElementById('filtersPanel').addEventListener('change', (e) => {
+  const el = e.target;
+  if (!el.dataset.filterCol || el.dataset.filterKind !== 'multi') return;
+  const colId = el.dataset.filterCol;
+  const val = el.dataset.filterValue;
+  columnFilters[colId] = columnFilters[colId] || {};
+  const arr = columnFilters[colId].values || [];
+  if (el.checked) {
+    if (!arr.includes(val)) arr.push(val);
+  } else {
+    const idx = arr.indexOf(val);
+    if (idx !== -1) arr.splice(idx, 1);
+  }
+  columnFilters[colId].values = arr;
   updateFiltersButtonLabel();
   render();
 });
