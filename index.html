@@ -745,7 +745,14 @@ function customColumnDefs() {
       if (cc.type === 'yesno') return selectCellHtml(p, cc.id, YES_NO_OPTIONS, true);
       if (cc.type === 'date') return inputCellHtml(p, cc.id, 'date', true);
       if (cc.type === 'number') return inputCellHtml(p, cc.id, 'number', true);
-      return expandableTextCellHtml(p, cc.id, cc.label);
+
+      // ONLY the column explicitly titled "Notes" gets the large expandable
+      // cell and popup editor. Other text columns remain normal-sized text inputs.
+      if (cc.type === 'text' && cc.label.trim() === 'Notes') {
+        return expandableTextCellHtml(p, cc.id, cc.label);
+      }
+
+      return inputCellHtml(p, cc.id, 'text', true);
     }
   }));
 }
