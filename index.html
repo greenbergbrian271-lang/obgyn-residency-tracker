@@ -649,7 +649,7 @@ async function pullStateFromServer(isInitialLoad) {
     }
   } catch (err) {
     console.error('Sync pull error:', err);
-    if (isInitialLoad) setSyncStatus('Offline — starting from this browser\'s local data.');
+    setSyncStatus('Offline — sync failed. Retrying automatically…');
   }
 }
 function initSync() {
