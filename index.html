@@ -800,6 +800,14 @@ function renderBulkValueInput() {
   }
 }
 
+function doStatusLine(p) {
+  if (p.do_50pct) return '≥50% DO applicants';
+  if (p.do_20pct) return '≥20% DO applicants';
+  if (p.do_10pct) return '≥10% DO applicants';
+  if (p.accepts_do) return 'DO applicants accepted';
+  return 'DO applicants not accepted';
+}
+
 function popupHtml(p) {
   const signal = getSignal(p);
   const data = getData(p);
@@ -810,7 +818,7 @@ function popupHtml(p) {
     data.interview_date ? `Interview date: ${escHtml(data.interview_date)}` : '',
     data.salary ? `Salary: $${escHtml(data.salary)}` : '',
   ].filter(Boolean).join('<br>');
-  return `<b>${p.name}</b><br>${p.city}, ${p.state}<br>~${p.dist_mi} mi straight-line &middot; ${TIER_LABELS[p.tier]}<br>DO applicants accepted: ${p.accepts_do ? "Yes" : "No"}<br>≥10% DO applicants: ${p.do_10pct ? "Yes" : "No"}<br>≥20% DO applicants: ${p.do_20pct ? "Yes" : "No"}<br>≥50% DO applicants: ${p.do_50pct ? "Yes" : "No"}${signalLine}${trackingLines ? `<br>${trackingLines}` : ''}${p.mapped_address ? `<br><span style="font-size:11px">Mapped address: ${p.mapped_address}</span>` : ""}`;
+  return `<b>${p.name}</b><br>${p.city}, ${p.state}<br>~${p.dist_mi} mi straight-line &middot; ${TIER_LABELS[p.tier]}<br>${doStatusLine(p)}${signalLine}${trackingLines ? `<br>${trackingLines}` : ''}${p.mapped_address ? `<br><span style="font-size:11px">Mapped address: ${p.mapped_address}</span>` : ""}`;
 }
 function selectedPrograms(signalType) {
   return PROGRAMS.filter(p => getSignal(p) === signalType).map(p => p.name);
