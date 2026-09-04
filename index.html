@@ -295,6 +295,15 @@
   td.col-select, th.col-select{ text-align:center; width:30px; }
   .row-select, #selectAllRows{ cursor:pointer; }
   .filter-checkbox-row{ display:flex; align-items:center; gap:6px; font-weight:400; margin:2px 0; }
+
+  .cell-note{
+    min-width:450px; max-width:450px; max-height:60px; overflow:hidden;
+    white-space:pre-wrap; word-break:break-word; cursor:pointer;
+    padding:5px 7px; border:1px solid var(--border); border-radius:5px; background:#fff;
+    font-size:12.5px; line-height:1.4;
+  }
+
+  .cell-note:hover{ background:#f2f6ff; border-color:#8ba6d9; }
 </style>
 </head>
 <body>
@@ -394,6 +403,17 @@
   <span id="bulkValueContainer"></span>
   <button type="button" class="btn btn-primary" id="bulkApplyBtn">Apply to selected</button>
   <button type="button" class="btn" id="bulkClearBtn">Clear selection</button>
+</div>
+
+<div id="noteModalOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:10px; padding:18px; width:90%; max-width:600px; box-shadow:0 10px 40px rgba(0,0,0,.25);">
+    <label id="noteModalLabel" style="font-weight:650; margin-bottom:8px; display:block; font-size:14px;">Note</label>
+    <textarea id="noteModalTextarea" style="width:100%; min-height:220px; padding:10px; border:1px solid var(--border); border-radius:6px; font-size:14px; font-family:inherit; box-sizing:border-box;"></textarea>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+      <button type="button" class="btn" id="noteModalCancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="noteModalSave">Save</button>
+    </div>
+  </div>
 </div>
 
 <div class="table-wrap">
@@ -683,6 +703,12 @@ function inputCellHtml(p, colId, type, isCustom, extraAttrs) {
   return `<input type="${type}" class="cell-input" data-key="${escAttr(signalKey(p))}" data-colid="${escAttr(colId)}" data-builtin="${isCustom ? 0 : 1}" ${extraAttrs || ''} value="${escAttr(val)}">`;
 }
 
+function expandableTextCellHtml(p, colId, label) {
+  const data = getData(p);
+  const val = data.custom[colId] || '';
+  return `<div class="cell-note" data-key="${escAttr(signalKey(p))}" data-colid="${escAttr(colId)}" data-label="${escAttr(label)}" title="Click to expand">${val ? escHtml(val) : '<span style="color:#9aa0a6">—</span>'}</div>`;
+}
+
 function signalCellHtml(p) {
   return `<button type="button" class="signal-btn gold ${getSignal(p) === 'gold' ? 'selected' : ''}" data-signal="gold" title="Gold signal">🥇</button>` +
          `<button type="button" class="signal-btn silver ${getSignal(p) === 'silver' ? 'selected' : ''}" data-signal="silver" title="Silver signal">🥈</button>`;
@@ -719,7 +745,7 @@ function customColumnDefs() {
       if (cc.type === 'yesno') return selectCellHtml(p, cc.id, YES_NO_OPTIONS, true);
       if (cc.type === 'date') return inputCellHtml(p, cc.id, 'date', true);
       if (cc.type === 'number') return inputCellHtml(p, cc.id, 'number', true);
-      return inputCellHtml(p, cc.id, 'text', true);
+      return expandableTextCellHtml(p, cc.id, cc.label);
     }
   }));
 }
@@ -1140,6 +1166,16 @@ function render() {
 // Clicks that land on an input/select/checkbox are left alone so editing
 // and selecting a row doesn't also fly the map to that program.
 tbody.addEventListener('click', (e) => {
+  const noteCell = e.target.closest('.cell-note');
+  if (noteCell) {
+    e.stopPropagation();
+    const key = noteCell.dataset.key;
+    const colId = noteCell.dataset.colid;
+    const current = (rowDataStore[key] && rowDataStore[key].custom && rowDataStore[key].custom[colId]) || '';
+    openNoteModal(key, colId, noteCell.dataset.label, current);
+    return;
+  }
+
   if (e.target.closest('input, select')) return;
   const button = e.target.closest('.signal-btn');
   const row = e.target.closest('.prog-row');
@@ -1196,6 +1232,35 @@ tbody.addEventListener('change', (e) => {
     saveRowData();
     if (sortKey === colId) render();
   }
+});
+
+let noteModalKey = null, noteModalColId = null;
+
+function openNoteModal(key, colId, label, currentVal) {
+  noteModalKey = key; noteModalColId = colId;
+  document.getElementById('noteModalLabel').textContent = label;
+  document.getElementById('noteModalTextarea').value = currentVal;
+  document.getElementById('noteModalOverlay').style.display = 'flex';
+  document.getElementById('noteModalTextarea').focus();
+}
+
+function closeNoteModal() {
+  document.getElementById('noteModalOverlay').style.display = 'none';
+  noteModalKey = null; noteModalColId = null;
+}
+
+document.getElementById('noteModalSave').addEventListener('click', () => {
+  if (!noteModalKey || !noteModalColId) return closeNoteModal();
+  const entry = getDataMutable(noteModalKey);
+  entry.custom[noteModalColId] = document.getElementById('noteModalTextarea').value;
+  saveRowData();
+  render();
+  closeNoteModal();
+});
+
+document.getElementById('noteModalCancel').addEventListener('click', closeNoteModal);
+document.getElementById('noteModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'noteModalOverlay') closeNoteModal();
 });
 
 // Header clicks (sorting) + "select all visible" checkbox — delegated since
