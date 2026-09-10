@@ -665,7 +665,7 @@ async function pushStateToServer() {
       renderBulkFieldOptions();
       setSyncStatus('Someone else updated this tracker — refreshed to the latest. Please redo your last change if it didn\'t take.');
     } else {
-      setSyncStatus('Sync error — saved to this browser only. Retrying…');
+      setSyncStatus(`Sync error: ${data.error || 'Unknown server error'} — retrying…`);
       console.error('Sync push failed:', data.error);
     }
   } catch (err) {
@@ -1575,3 +1575,4 @@ try {
 </script>
 </body>
 </html>
+
