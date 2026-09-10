@@ -27,12 +27,16 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // ============================================================
+    // API PROXY
+    // ============================================================
     if (
       url.pathname === API_PATH ||
       url.pathname.startsWith(API_PATH + "/")
     ) {
       const origin = request.headers.get("Origin");
 
+      // Only allow requests from the approved tracker sites.
       if (origin && !ALLOWED_ORIGINS.includes(origin)) {
         return new Response(
           JSON.stringify({
@@ -48,6 +52,7 @@ export default {
         );
       }
 
+      // CORS preflight.
       if (request.method === "OPTIONS") {
         return new Response(null, {
           status: 204,
@@ -72,76 +77,94 @@ export default {
       }
 
       try {
+        let upstreamResponse;
+
+        // ========================================================
+        // GET
+        // ========================================================
         if (request.method === "GET") {
-          const upstreamResponse = await fetch(APPS_SCRIPT_URL, {
+          upstreamResponse = await fetch(APPS_SCRIPT_URL, {
             method: "GET",
             redirect: "follow"
           });
-
-          const responseBody = await upstreamResponse.text();
-
-          return new Response(responseBody, {
-            status: upstreamResponse.status,
-            headers: {
-              ...corsHeaders(origin),
-              "Content-Type": "application/json; charset=utf-8",
-              "Cache-Control": "no-store"
-            }
-          });
         }
 
-        const body = await request.text();
+        // ========================================================
+        // POST
+        // ========================================================
+        if (request.method === "POST") {
+          const body = await request.text();
 
-        // First POST to Apps Script without automatically following redirects.
-        let upstreamResponse = await fetch(APPS_SCRIPT_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "text/plain;charset=utf-8"
-          },
-          body,
-          redirect: "manual"
-        });
-
-        // If Apps Script redirects, follow it explicitly while preserving POST.
-        if (
-          upstreamResponse.status >= 300 &&
-          upstreamResponse.status < 400
-        ) {
-          const location = upstreamResponse.headers.get("Location");
-
-          if (!location) {
-            throw new Error("Apps Script redirected without a Location header");
-          }
-
-          upstreamResponse = await fetch(location, {
+          /*
+           * IMPORTANT:
+           * Google Apps Script executes doPost(), then redirects to a
+           * googleusercontent URL containing the generated response.
+           *
+           * We intentionally let fetch() follow that redirect normally.
+           * For Google's 302 response, the redirected request becomes GET,
+           * which is how the Apps Script response is retrieved.
+           */
+          upstreamResponse = await fetch(APPS_SCRIPT_URL, {
             method: "POST",
             headers: {
               "Content-Type": "text/plain;charset=utf-8"
             },
-            body,
+            body: body,
             redirect: "follow"
           });
         }
 
         const responseBody = await upstreamResponse.text();
 
-        return new Response(responseBody, {
-          status: upstreamResponse.status,
-          headers: {
-            ...corsHeaders(origin),
-            "Content-Type": "application/json; charset=utf-8",
-            "Cache-Control": "no-store"
+        /*
+         * Apps Script should return JSON. If Google sends an HTML error
+         * page, return a useful JSON error to the tracker instead of
+         * pretending that HTML is JSON.
+         */
+        let parsed;
+
+        try {
+          parsed = JSON.parse(responseBody);
+        } catch (error) {
+          return new Response(
+            JSON.stringify({
+              ok: false,
+              error: "Apps Script returned a non-JSON response",
+              upstreamStatus: upstreamResponse.status,
+              message: responseBody.slice(0, 500)
+            }),
+            {
+              status: 502,
+              headers: {
+                ...corsHeaders(origin),
+                "Content-Type": "application/json; charset=utf-8",
+                "Cache-Control": "no-store"
+              }
+            }
+          );
+        }
+
+        return new Response(
+          JSON.stringify(parsed),
+          {
+            status: upstreamResponse.status,
+            headers: {
+              ...corsHeaders(origin),
+              "Content-Type": "application/json; charset=utf-8",
+              "Cache-Control": "no-store"
+            }
           }
-        });
+        );
 
       } catch (error) {
         return new Response(
           JSON.stringify({
             ok: false,
             error: "Proxy error",
-            message: error instanceof Error
-              ? error.message
-              : String(error)
+            message:
+              error instanceof Error
+                ? error.message
+                : String(error)
           }),
           {
             status: 502,
@@ -155,6 +178,9 @@ export default {
       }
     }
 
+    // ============================================================
+    // STATIC WEBSITE
+    // ============================================================
     return env.ASSETS.fetch(request);
   }
 };
