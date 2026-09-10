@@ -27,16 +27,12 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // ============================================================
-    // API PROXY
-    // ============================================================
     if (
       url.pathname === API_PATH ||
       url.pathname.startsWith(API_PATH + "/")
     ) {
       const origin = request.headers.get("Origin");
 
-      // Only allow browser requests from the two approved tracker sites.
       if (origin && !ALLOWED_ORIGINS.includes(origin)) {
         return new Response(
           JSON.stringify({
@@ -52,7 +48,6 @@ export default {
         );
       }
 
-      // Handle browser CORS preflight.
       if (request.method === "OPTIONS") {
         return new Response(null, {
           status: 204,
@@ -60,7 +55,6 @@ export default {
         });
       }
 
-      // Only GET and POST are supported by the tracker backend.
       if (request.method !== "GET" && request.method !== "POST") {
         return new Response(
           JSON.stringify({
@@ -78,24 +72,56 @@ export default {
       }
 
       try {
-        const requestOptions = {
-          method: request.method,
-          redirect: "follow"
-        };
+        if (request.method === "GET") {
+          const upstreamResponse = await fetch(APPS_SCRIPT_URL, {
+            method: "GET",
+            redirect: "follow"
+          });
 
-        // Forward the tracker JSON body to Apps Script on POST.
-        if (request.method === "POST") {
-          requestOptions.headers = {
-            "Content-Type": "text/plain;charset=utf-8"
-          };
+          const responseBody = await upstreamResponse.text();
 
-          requestOptions.body = await request.text();
+          return new Response(responseBody, {
+            status: upstreamResponse.status,
+            headers: {
+              ...corsHeaders(origin),
+              "Content-Type": "application/json; charset=utf-8",
+              "Cache-Control": "no-store"
+            }
+          });
         }
 
-        const upstreamResponse = await fetch(
-          APPS_SCRIPT_URL,
-          requestOptions
-        );
+        const body = await request.text();
+
+        // First POST to Apps Script without automatically following redirects.
+        let upstreamResponse = await fetch(APPS_SCRIPT_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          },
+          body,
+          redirect: "manual"
+        });
+
+        // If Apps Script redirects, follow it explicitly while preserving POST.
+        if (
+          upstreamResponse.status >= 300 &&
+          upstreamResponse.status < 400
+        ) {
+          const location = upstreamResponse.headers.get("Location");
+
+          if (!location) {
+            throw new Error("Apps Script redirected without a Location header");
+          }
+
+          upstreamResponse = await fetch(location, {
+            method: "POST",
+            headers: {
+              "Content-Type": "text/plain;charset=utf-8"
+            },
+            body,
+            redirect: "follow"
+          });
+        }
 
         const responseBody = await upstreamResponse.text();
 
@@ -129,9 +155,6 @@ export default {
       }
     }
 
-    // ============================================================
-    // STATIC WEBSITE
-    // ============================================================
     return env.ASSETS.fetch(request);
   }
 };
