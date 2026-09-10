@@ -590,6 +590,8 @@ function saveSignalSelections() { saveJSON(LS_SIGNALS, Object.fromEntries(signal
 // ----------------------------------------------------------------------
 const syncStatusEl = document.getElementById('syncStatus');
 
+let currentVersion = 0; // synced from server; used for optimistic concurrency
+
 function currentStateBlob() {
   return {
     rowData: rowDataStore,
@@ -599,6 +601,7 @@ function currentStateBlob() {
     signalSelections: Object.fromEntries(signalSelections),
   };
 }
+
 function applyStateBlob(state) {
   if (!state) return;
   if (state.rowData) rowDataStore = state.rowData;
@@ -609,15 +612,25 @@ function applyStateBlob(state) {
     signalSelections.clear();
     Object.entries(state.signalSelections).forEach(([k, v]) => signalSelections.set(k, v));
   }
+
   saveJSON(LS_ROWDATA, rowDataStore);
   saveJSON(LS_CUSTOM_COLS, customColumns);
   saveJSON(LS_COL_VIS, columnVisibility);
   saveJSON(LS_COL_ORDER, columnOrder);
   saveJSON(LS_SIGNALS, state.signalSelections || {});
 }
+
+// True while an input is actively focused — we must never blow away the
+// DOM (via render()) while the user is mid-keystroke in a field.
+function isEditingField() {
+  const el = document.activeElement;
+  return !!(el && el.classList && el.classList.contains('cell-input'));
+}
+
 function setSyncStatus(text) {
   if (syncStatusEl) syncStatusEl.textContent = text;
 }
+
 function scheduleSync() {
   if (!SHEET_API_URL) return;
   lastLocalEditAt = Date.now();
@@ -625,6 +638,7 @@ function scheduleSync() {
   syncPushTimer = setTimeout(pushStateToServer, SYNC_DEBOUNCE_MS);
   setSyncStatus('Unsynced changes…');
 }
+
 async function pushStateToServer() {
   if (!SHEET_API_URL) return;
   syncInFlight = true;
@@ -632,14 +646,24 @@ async function pushStateToServer() {
   try {
     const res = await fetch(SHEET_API_URL, {
       method: 'POST',
-      // text/plain avoids a CORS preflight against the Apps Script endpoint;
-      // the server parses the body as JSON regardless of this header.
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(currentStateBlob()),
+      body: JSON.stringify({ baseVersion: currentVersion, state: currentStateBlob() }),
     });
     const data = await res.json();
+
     if (data.ok) {
+      currentVersion = data.version;
       setSyncStatus(`Synced with shared sheet at ${new Date().toLocaleTimeString()}`);
+    } else if (data.error === 'conflict') {
+      // Someone else (your wife, or another tab) saved since we last synced.
+      // Do NOT push our stale copy over theirs. Pull their version in and
+      // tell the user plainly, rather than silently discarding either side.
+      applyStateBlob(data.state);
+      currentVersion = data.version;
+      if (!isEditingField()) render();
+      renderColumnsPanel();
+      renderBulkFieldOptions();
+      setSyncStatus('Someone else updated this tracker — refreshed to the latest. Please redo your last change if it didn\'t take.');
     } else {
       setSyncStatus('Sync error — saved to this browser only. Retrying…');
       console.error('Sync push failed:', data.error);
@@ -651,15 +675,21 @@ async function pushStateToServer() {
     syncInFlight = false;
   }
 }
+
 async function pullStateFromServer(isInitialLoad) {
   if (!SHEET_API_URL) return;
-  // Don't clobber an edit that's about to be pushed, or one that's mid-flight.
   if (!isInitialLoad && (syncInFlight || Date.now() - lastLocalEditAt < SYNC_DEBOUNCE_MS + 2000)) return;
+
+  // Never rebuild the table out from under someone who's actively typing.
+  if (!isInitialLoad && isEditingField()) return;
+
   try {
     const res = await fetch(SHEET_API_URL, { method: 'GET' });
     const data = await res.json();
+
     if (data.ok) {
       applyStateBlob(data.state);
+      currentVersion = data.version;
       renderColumnsPanel();
       renderBulkFieldOptions();
       render();
@@ -669,14 +699,27 @@ async function pullStateFromServer(isInitialLoad) {
     }
   } catch (err) {
     console.error('Sync pull error:', err);
-    setSyncStatus('Offline — sync failed. Retrying automatically…');
+    if (isInitialLoad) setSyncStatus('Offline — starting from this browser\'s local data.');
   }
 }
+
 function initSync() {
   if (!SHEET_API_URL) { setSyncStatus(''); return; }
   setSyncStatus('Loading shared sheet…');
   pullStateFromServer(true);
   syncPollTimer = setInterval(() => pullStateFromServer(false), SYNC_POLL_MS);
+
+  // Pause polling while this tab is hidden, and force an immediate fresh
+  // pull the moment it becomes visible again — this is what stops a
+  // long-forgotten background tab from acting on stale data.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (syncPollTimer) { clearInterval(syncPollTimer); syncPollTimer = null; }
+    } else {
+      pullStateFromServer(false); // refresh immediately on return
+      if (!syncPollTimer) syncPollTimer = setInterval(() => pullStateFromServer(false), SYNC_POLL_MS);
+    }
+  });
 }
 document.getElementById('syncNowBtn') && document.getElementById('syncNowBtn').addEventListener('click', () => {
   if (!SHEET_API_URL) { setSyncStatus('Shared sync isn\'t set up yet — see SHEET_API_URL in the code.'); return; }
