@@ -511,19 +511,33 @@ const LS_COL_ORDER = 'obgynTracker.columnOrder.v1';
 const LS_SIGNALS = 'obgynTracker.signalSelections.v1';
 
 // ----------------------------------------------------------------------
-// Shared sync (Google Sheet backend via Apps Script Web App)
+// Shared sync (Google Sheet backend via Cloudflare Worker)
 // ----------------------------------------------------------------------
-// Paste the "Web app URL" you get from deploying Code.gs here. Leave it
-// blank ('') to keep this tracker local-only (localStorage on this
-// browser only, same as before).
-const SHEET_API_URL = '/api';
+// The Cloudflare-hosted tracker can use the same-origin /api route.
+// The GitHub Pages copy uses the full Worker URL so BOTH webpages can sync.
+const WORKER_API_URL = 'https://obgyn-residency-tracker.greenbergbrian271.workers.dev/api';
+const SHEET_API_URL =
+  window.location.hostname === 'obgyn-residency-tracker.greenbergbrian271.workers.dev'
+    ? '/api'
+    : WORKER_API_URL;
 
-const SYNC_POLL_MS = 20000;     // how often to check the sheet for the other person's edits
-const SYNC_DEBOUNCE_MS = 1200;  // wait this long after your last edit before pushing
+const SYNC_POLL_MS = 20000;      // check for the other person's edits every 20 seconds
+const SYNC_DEBOUNCE_MS = 1200;   // wait briefly after the latest local edit before saving
+const SYNC_RETRY_BASE_MS = 2000; // retry transient save failures automatically
+const SYNC_RETRY_MAX_MS = 15000;
+
 let syncPushTimer = null;
 let syncPollTimer = null;
+let syncRetryTimer = null;
 let lastLocalEditAt = 0;
 let syncInFlight = false;
+let pullInFlight = false;
+let syncDirty = false;
+let syncInitialized = false;
+let localRevision = 0;
+let retryAttempt = 0;
+let currentVersion = 0;
+let lastSyncedState = null;
 
 const APP_STATUS_OPTIONS = ['Undecided', 'Won\'t Apply', 'Will Apply', 'Applied', 'Interview Request', 'Interview Scheduled', 'Interview Complete'];
 const YES_NO_OPTIONS = ['Yes', 'No'];
@@ -582,15 +596,17 @@ function saveColumnOrder() { saveJSON(LS_COL_ORDER, columnOrder); markSaved(); s
 function saveSignalSelections() { saveJSON(LS_SIGNALS, Object.fromEntries(signalSelections)); markSaved(); scheduleSync(); }
 
 // ----------------------------------------------------------------------
-// Shared sync: bundles the same four stores that Export/Import already
-// use (plus signals) into one JSON blob and keeps it in sync with the
-// Google Sheet via the Apps Script web app, so both of you see the same
-// data. If SHEET_API_URL is blank, this is a no-op and the tracker just
-// behaves as local-only, like before.
+// Hardened shared sync
 // ----------------------------------------------------------------------
+// Important guarantees:
+// 1) Never more than ONE POST is in flight at once.
+// 2) If another edit happens while saving, the newest state is queued and
+//    saved immediately after the current request finishes.
+// 3) Polling never overwrites unsaved local edits.
+// 4) Conflicts are three-way merged so remote edits are preserved while
+//    this browser's unsaved changes are reapplied and retried.
+// 5) Temporary network/server failures retry automatically.
 const syncStatusEl = document.getElementById('syncStatus');
-
-let currentVersion = 0; // synced from server; used for optimistic concurrency
 
 function currentStateBlob() {
   return {
@@ -600,6 +616,44 @@ function currentStateBlob() {
     columnOrder,
     signalSelections: Object.fromEntries(signalSelections),
   };
+}
+
+function deepClone(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+function sameValue(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+// Three-way merge: compare our current local state and the newest server
+// state against the last state both sides agreed on. If only one side changed
+// a value, keep that change. If both changed the same object, merge deeper.
+// If both changed the same scalar/array differently, the local unsaved edit
+// wins so the user's latest action is never silently discarded.
+function mergeThreeWay(base, local, remote) {
+  if (sameValue(local, base)) return deepClone(remote);
+  if (sameValue(remote, base)) return deepClone(local);
+  if (sameValue(local, remote)) return deepClone(local);
+
+  if (isPlainObject(base) || isPlainObject(local) || isPlainObject(remote)) {
+    const b = isPlainObject(base) ? base : {};
+    const l = isPlainObject(local) ? local : {};
+    const r = isPlainObject(remote) ? remote : {};
+    const result = {};
+    const keys = new Set([...Object.keys(b), ...Object.keys(l), ...Object.keys(r)]);
+    keys.forEach(key => {
+      const merged = mergeThreeWay(b[key], l[key], r[key]);
+      if (merged !== undefined) result[key] = merged;
+    });
+    return result;
+  }
+
+  return deepClone(local);
 }
 
 function applyStateBlob(state) {
@@ -620,110 +674,295 @@ function applyStateBlob(state) {
   saveJSON(LS_SIGNALS, state.signalSelections || {});
 }
 
-// True while an input is actively focused — we must never blow away the
-// DOM (via render()) while the user is mid-keystroke in a field.
 function isEditingField() {
   const el = document.activeElement;
-  return !!(el && el.classList && el.classList.contains('cell-input'));
+  return !!(el && (
+    (el.classList && el.classList.contains('cell-input')) ||
+    el.id === 'noteModalTextarea'
+  ));
 }
 
 function setSyncStatus(text) {
   if (syncStatusEl) syncStatusEl.textContent = text;
 }
 
+function clearSyncRetry() {
+  if (syncRetryTimer) {
+    clearTimeout(syncRetryTimer);
+    syncRetryTimer = null;
+  }
+}
+
+function scheduleRetry() {
+  if (!syncDirty || syncRetryTimer) return;
+  const delay = Math.min(SYNC_RETRY_BASE_MS * Math.pow(2, retryAttempt), SYNC_RETRY_MAX_MS);
+  retryAttempt++;
+  syncRetryTimer = setTimeout(() => {
+    syncRetryTimer = null;
+    pushStateToServer();
+  }, delay);
+}
+
 function scheduleSync() {
   if (!SHEET_API_URL) return;
+
   lastLocalEditAt = Date.now();
+  localRevision++;
+  syncDirty = true;
+  clearSyncRetry();
+
   if (syncPushTimer) clearTimeout(syncPushTimer);
-  syncPushTimer = setTimeout(pushStateToServer, SYNC_DEBOUNCE_MS);
-  setSyncStatus('Unsynced changes…');
+
+  // If another POST is already running, do not start a competing request.
+  // Its finally block will immediately send the newest queued state.
+  if (syncInFlight) {
+    setSyncStatus('Saving… another change queued');
+    return;
+  }
+
+  syncPushTimer = setTimeout(() => {
+    syncPushTimer = null;
+    pushStateToServer();
+  }, SYNC_DEBOUNCE_MS);
+
+  setSyncStatus(syncInitialized ? 'Unsynced changes…' : 'Waiting for shared sheet…');
 }
 
 async function pushStateToServer() {
-  if (!SHEET_API_URL) return;
+  if (!SHEET_API_URL || !syncDirty || syncInFlight) return;
+
+  // Always establish the current server version before the first write.
+  if (!syncInitialized) {
+    await pullStateFromServer(true);
+    if (!syncInitialized) {
+      setSyncStatus('Could not reach shared sheet — saved locally; retrying…');
+      scheduleRetry();
+      return;
+    }
+  }
+
   syncInFlight = true;
-  setSyncStatus('Syncing…');
+  clearSyncRetry();
+
+  const sentRevision = localRevision;
+  const sentState = deepClone(currentStateBlob());
+  const sentBaseState = deepClone(lastSyncedState || {});
+  const sentBaseVersion = currentVersion;
+
+  setSyncStatus('Saving to shared sheet…');
+
   try {
     const res = await fetch(SHEET_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ baseVersion: currentVersion, state: currentStateBlob() }),
+      body: JSON.stringify({ baseVersion: sentBaseVersion, state: sentState }),
+      cache: 'no-store'
     });
-    const data = await res.json();
+
+    const responseText = await res.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseErr) {
+      throw new Error(`Server returned non-JSON (${res.status}): ${responseText.slice(0, 180)}`);
+    }
+
+    if (!res.ok) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
 
     if (data.ok) {
       currentVersion = data.version;
-      setSyncStatus(`Synced with shared sheet at ${new Date().toLocaleTimeString()}`);
+      lastSyncedState = sentState;
+      retryAttempt = 0;
+
+      // Only mark clean if nothing changed locally after this request began.
+      if (localRevision === sentRevision) {
+        syncDirty = false;
+        setSyncStatus(`Synced with shared sheet at ${new Date().toLocaleTimeString()}`);
+      } else {
+        syncDirty = true;
+        setSyncStatus('Saving newest queued change…');
+      }
     } else if (data.error === 'conflict') {
-      // Someone else (your wife, or another tab) saved since we last synced.
-      // Do NOT push our stale copy over theirs. Pull their version in and
-      // tell the user plainly, rather than silently discarding either side.
-      applyStateBlob(data.state);
+      const remoteState = data.state || {};
+      const newestLocalState = currentStateBlob();
+
+      // Rebase any unsaved local edits on top of the server's newest state.
+      const mergedState = mergeThreeWay(
+        sentBaseState,
+        newestLocalState,
+        remoteState
+      );
+
+      applyStateBlob(mergedState);
+      lastSyncedState = deepClone(remoteState);
       currentVersion = data.version;
-      if (!isEditingField()) render();
-      renderColumnsPanel();
-      renderBulkFieldOptions();
-      setSyncStatus('Someone else updated this tracker — refreshed to the latest. Please redo your last change if it didn\'t take.');
+      syncDirty = true;
+      localRevision++;
+      retryAttempt = 0;
+
+      if (!isEditingField()) {
+        renderColumnsPanel();
+        renderBulkFieldOptions();
+        render();
+      }
+
+      setSyncStatus('Merged another update — saving your changes…');
     } else {
-      setSyncStatus(`Sync error: ${data.error || 'Unknown server error'} — retrying…`);
-      console.error('Sync push failed:', data.error);
+      throw new Error(data.error || 'Unknown server error');
     }
   } catch (err) {
-    setSyncStatus('Offline — saved to this browser only. Retrying…');
+    syncDirty = true;
     console.error('Sync push error:', err);
+    setSyncStatus('Save failed temporarily — kept in this browser and retrying…');
+    scheduleRetry();
   } finally {
     syncInFlight = false;
+
+    // A local edit or conflict may have queued a newer state while this POST
+    // was running. Send it immediately, serialized behind the request above.
+    if (syncDirty && !syncRetryTimer) {
+      Promise.resolve().then(() => pushStateToServer());
+    }
   }
 }
 
 async function pullStateFromServer(isInitialLoad) {
-  if (!SHEET_API_URL) return;
-  if (!isInitialLoad && (syncInFlight || Date.now() - lastLocalEditAt < SYNC_DEBOUNCE_MS + 2000)) return;
+  if (!SHEET_API_URL || pullInFlight) return false;
 
-  // Never rebuild the table out from under someone who's actively typing.
-  if (!isInitialLoad && isEditingField()) return;
+  // Never let polling overwrite a local change waiting to be saved.
+  if (!isInitialLoad && (syncDirty || syncInFlight || isEditingField())) return false;
+
+  pullInFlight = true;
 
   try {
-    const res = await fetch(SHEET_API_URL, { method: 'GET' });
-    const data = await res.json();
+    const res = await fetch(SHEET_API_URL, {
+      method: 'GET',
+      cache: 'no-store'
+    });
 
-    if (data.ok) {
-      applyStateBlob(data.state);
-      currentVersion = data.version;
-      renderColumnsPanel();
-      renderBulkFieldOptions();
-      render();
-      setSyncStatus(`Synced with shared sheet at ${new Date().toLocaleTimeString()}`);
-    } else if (isInitialLoad) {
-      setSyncStatus('Could not load shared sheet — starting from this browser\'s local data.');
+    const responseText = await res.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseErr) {
+      throw new Error(`Server returned non-JSON (${res.status})`);
     }
+
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+
+    const remoteState = data.state || {};
+
+    if (isInitialLoad && syncDirty) {
+      // Extremely rare case: user edited before the initial GET completed.
+      // Preserve that local edit while adopting the current server version.
+      const localState = currentStateBlob();
+      const baseState = lastSyncedState || remoteState;
+      const mergedState = mergeThreeWay(baseState, localState, remoteState);
+      applyStateBlob(mergedState);
+      syncDirty = true;
+    } else if (isInitialLoad || data.version !== currentVersion) {
+      applyStateBlob(remoteState);
+    }
+
+    currentVersion = data.version;
+    lastSyncedState = deepClone(remoteState);
+    syncInitialized = true;
+    retryAttempt = 0;
+
+    renderColumnsPanel();
+    renderBulkFieldOptions();
+    if (!isEditingField()) render();
+
+    if (!syncDirty) {
+      setSyncStatus(`Synced with shared sheet at ${new Date().toLocaleTimeString()}`);
+    }
+
+    return true;
   } catch (err) {
     console.error('Sync pull error:', err);
-    if (isInitialLoad) setSyncStatus('Offline — starting from this browser\'s local data.');
+    if (isInitialLoad) {
+      setSyncStatus('Could not load shared sheet — using this browser\'s saved data and retrying…');
+    }
+    return false;
+  } finally {
+    pullInFlight = false;
   }
 }
 
-function initSync() {
-  if (!SHEET_API_URL) { setSyncStatus(''); return; }
-  setSyncStatus('Loading shared sheet…');
-  pullStateFromServer(true);
+function startPolling() {
+  if (syncPollTimer) clearInterval(syncPollTimer);
   syncPollTimer = setInterval(() => pullStateFromServer(false), SYNC_POLL_MS);
+}
 
-  // Pause polling while this tab is hidden, and force an immediate fresh
-  // pull the moment it becomes visible again — this is what stops a
-  // long-forgotten background tab from acting on stale data.
+async function initSync() {
+  if (!SHEET_API_URL) {
+    setSyncStatus('');
+    return;
+  }
+
+  setSyncStatus('Loading shared sheet…');
+  const loaded = await pullStateFromServer(true);
+
+  if (!loaded) {
+    // Keep trying even if the first page-load request hit a temporary failure.
+    syncRetryTimer = setTimeout(async () => {
+      syncRetryTimer = null;
+      const retryLoaded = await pullStateFromServer(true);
+      if (retryLoaded && syncDirty) pushStateToServer();
+    }, SYNC_RETRY_BASE_MS);
+  } else if (syncDirty) {
+    pushStateToServer();
+  }
+
+  startPolling();
+
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-      if (syncPollTimer) { clearInterval(syncPollTimer); syncPollTimer = null; }
+      if (syncPollTimer) {
+        clearInterval(syncPollTimer);
+        syncPollTimer = null;
+      }
     } else {
-      pullStateFromServer(false); // refresh immediately on return
-      if (!syncPollTimer) syncPollTimer = setInterval(() => pullStateFromServer(false), SYNC_POLL_MS);
+      if (syncDirty) pushStateToServer();
+      else pullStateFromServer(false);
+      if (!syncPollTimer) startPolling();
+    }
+  });
+
+  // Best-effort save when leaving the page. fetch(..., keepalive:true) is
+  // supported by modern browsers and gives a pending edit a chance to finish.
+  window.addEventListener('pagehide', () => {
+    if (!syncDirty || syncInFlight || !syncInitialized) return;
+    try {
+      fetch(SHEET_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ baseVersion: currentVersion, state: currentStateBlob() }),
+        keepalive: true,
+        cache: 'no-store'
+      });
+    } catch (err) {
+      // localStorage already contains the edit, so no action is needed here.
     }
   });
 }
-document.getElementById('syncNowBtn') && document.getElementById('syncNowBtn').addEventListener('click', () => {
-  if (!SHEET_API_URL) { setSyncStatus('Shared sync isn\'t set up yet — see SHEET_API_URL in the code.'); return; }
-  pullStateFromServer(false);
+
+document.getElementById('syncNowBtn') && document.getElementById('syncNowBtn').addEventListener('click', async () => {
+  if (!SHEET_API_URL) {
+    setSyncStatus('Shared sync isn\'t set up yet.');
+    return;
+  }
+
+  if (syncDirty) {
+    await pushStateToServer();
+  } else {
+    setSyncStatus('Checking shared sheet…');
+    await pullStateFromServer(false);
+  }
 });
 
 function escHtml(s) {
